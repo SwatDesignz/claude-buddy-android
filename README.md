@@ -14,7 +14,7 @@ ZXBuddy is a lightweight Android companion app that brings a classic Tamagotchi�
 - **Mode Switching** – Choose from *Dev*, *Personal*, *Focus*, or *AI Mentor* modes, each biasing the pet’s behavior and UI theme.
 - **Theme Engine** – Switch UI palettes (Matrix Green, Amber Glow, Commodore Blue, Cyberpunk Pink, Classic White, Elegant Dark) on the fly.
 - **BLE Integration (Experimental)** – Scan for and pair with a “Claude Desktop” client for future cross‑device telemetry. A placeholder UI is included.
-- **Mini‑Game Hook** – A simple arcade‑style mini‑game awards “ZX Points” that can unlock extra species or cosmetics. (Future premium‑only expansions are planned.)
+- **Mini‑Game Hook** – A simple arcade‑style mini‑game awards “ZX Points” that can unlock extra species or cosmetics.
 - **In‑App Command System** – Type short commands directly in the terminal‑style input bar (`/feed`, `/stats`, `/theme matrix`, `/mode dev`, etc.) to trigger instant actions without invoking AI APIs.
 
 ## Offline‑First Design
@@ -90,7 +90,6 @@ export KEY_PASSWORD=<your-key-password>
 | `/scan` or `/sync` | Starts BLE scan (experimental). |
 | `/disconnect` | Ends BLE connection. |
 | `/clear` | Clears debug logs. |
-| `/unlockpremium` | Displays premium‑feature notice (currently limited to 50 species). |
 
 ## Roadmap (✓ Completed / ◻ Planned)
 - **✓ Basic pet lifecycle & care loop** – implemented.  

@@ -211,6 +211,17 @@ object SpeciesData {
             baseSnark = 30,
             frame1 = "  \\\\_// \n  (o.o) \n    ||  \n    ||  \n   /  \\ ",
             frame2 = "  \\\\_// \n  (O.O) \n    ||  \n    ||  \n   [  ] "
+        ),
+        SpeciesSpec(
+            name = "Ghost",
+            description = "A translucent memory leak haunting the heap. Slides through walls, corrupts pointers, and whispers stack traces at 3 AM.",
+            baseDebugging = 70,
+            basePatience = 25,
+            baseChaos = 90,
+            baseWisdom = 60,
+            baseSnark = 85,
+            frame1 = " .─────. \n(  o o  )\n ┌─────┐\n │ │ │ │\n ┴─┴─┴─┴ ",
+            frame2 = " .─────. \n(  O O  )\n ┌─────┐\n ┘ │ │ └\n  ─┴─┴─ "
         )
     )
 

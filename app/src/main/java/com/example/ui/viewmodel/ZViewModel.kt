@@ -457,7 +457,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 - /scan | /sync                      → Start BLE scan
 - /disconnect                        → End BLE connection
 - /clear                             → Clear debug logs
-- /unlockpremium                     → (premium‑only) unlock extra species/skins""")
+""")
                 true
             }
             "stats", "profile" -> {
@@ -489,7 +489,7 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
                 true
             }
             "shop", "buy" -> {
-                addLog(pet.name, "SHOP", "ZX Points: ${_zxPoints.value}. Free tier: 50 species variants. Premium unlocks 50,000+ genetic combinations!")
+                addLog(pet.name, "SHOP", "ZX Points: ${_zxPoints.value}. All ${SpeciesData.list.size} species are unlocked.")
                 true
             }
             "clean", "hygiene" -> {
@@ -560,11 +560,6 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
             }
             "clear" -> {
                 clearAllLogs()
-                true
-            }
-            "unlockpremium" -> {
-                addLog(pet.name, "PREMIUM",
-                    "Premium unlocks >50 uniquely‑generated species, variable trait ranges, and extended storyline. Currently capped at 50 variations to keep performance free.")
                 true
             }
             else -> false
