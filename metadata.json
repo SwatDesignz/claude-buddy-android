@@ -1,0 +1,6 @@
+{
+  "name": "ZXBuddy",
+  "description": "High-performance retro terminal pet companion featuring animated ASCII species, custom developer stats, BLE desktop emulator, and AI interaction.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

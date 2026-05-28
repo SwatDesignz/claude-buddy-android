@@ -1,0 +1,221 @@
+package com.example.data.model
+
+data class SpeciesSpec(
+    val name: String,
+    val description: String,
+    val baseDebugging: Int,
+    val basePatience: Int,
+    val baseChaos: Int,
+    val baseWisdom: Int,
+    val baseSnark: Int,
+    val frame1: String,
+    val frame2: String
+)
+
+object SpeciesData {
+    val list = listOf(
+        SpeciesSpec(
+            name = "Owl",
+            description = "A nocturnal, wise compiler-assistant. Loves late-night debugging sessions.",
+            baseDebugging = 85,
+            basePatience = 80,
+            baseChaos = 10,
+            baseWisdom = 90,
+            baseSnark = 20,
+            frame1 = "  ,___,  \n  [O.O]  \n  /)__)  \n  -\"--\"- ",
+            frame2 = "  ,___,  \n  [o.o]  \n  (  ( ) \n   -\"--\"- "
+        ),
+        SpeciesSpec(
+            name = "Duck",
+            description = "The classic rubber ducky. Extremely loud, chaotic, and helpful to bounce thoughts off of.",
+            baseDebugging = 40,
+            basePatience = 50,
+            baseChaos = 70,
+            baseWisdom = 30,
+            baseSnark = 70,
+            frame1 = "   __   \n <(o )___\n  ( ._> /\n   `---' ",
+            frame2 = "   __    \n <(O )___\n  ( ._> /\n   /  /  "
+        ),
+        SpeciesSpec(
+            name = "Capybara",
+            description = "The ultimate chill bro. Max patience, absolute tranquility under heavy production crashes.",
+            baseDebugging = 60,
+            basePatience = 95,
+            baseChaos = 5,
+            baseWisdom = 80,
+            baseSnark = 10,
+            frame1 = "  _..----.._ \n /___\\_     \\\n ( ^ . ^ )  |\n  `----\\' _/ \n      \"  \"   ",
+            frame2 = "  _..----.._ \n /____\\_    \\\n ( - . - )  |\n  `----\\' _/ \n     \" \"     "
+        ),
+        SpeciesSpec(
+            name = "Frog",
+            description = "A friendly hopper. Obsessed with clean garbage collection and memory leak hops.",
+            baseDebugging = 70,
+            basePatience = 60,
+            baseChaos = 50,
+            baseWisdom = 40,
+            baseSnark = 30,
+            frame1 = "  (o)___(o) \n  ( @_.@ )  \n  ( :--: )  \n <__vv__>   ",
+            frame2 = "  (O)___(O) \n  ( @._.@ ) \n  ( ===  )  \n  <__^^__>  "
+        ),
+        SpeciesSpec(
+            name = "Fox",
+            description = "Extremely clever but highly sarcastic. Has a snarky opinion on every pull request.",
+            baseDebugging = 75,
+            basePatience = 40,
+            baseChaos = 80,
+            baseWisdom = 50,
+            baseSnark = 85,
+            frame1 = "  /\\_/\\   \n (=^.^=)  \n  (\")(\")  \n  /     \\ ",
+            frame2 = "  /\\_/\\   \n (=o.o=)  \n  (\")(\")  \n ^       ^"
+        ),
+        SpeciesSpec(
+            name = "Wolf",
+            description = "A fierce pack programmer. Specializes in concurrent multithreading and system metrics.",
+            baseDebugging = 80,
+            basePatience = 50,
+            baseChaos = 40,
+            baseWisdom = 60,
+            baseSnark = 30,
+            frame1 = "  /\\  /\\   \n /  \\/  \\  \n(  o  o  )\n \\  ==  /  \n /      \\  ",
+            frame2 = "  /\\  /\\   \n /  \\/  \\  \n(  O  O  )\n \\  /\\  /  \n /  ||  \\  "
+        ),
+        SpeciesSpec(
+            name = "Bear",
+            description = "Strong and rugged. Sleeps through light alerts, but handles heavy data pipelines flawlessly.",
+            baseDebugging = 50,
+            basePatience = 70,
+            baseChaos = 30,
+            baseWisdom = 65,
+            baseSnark = 25,
+            frame1 = " /\\_/\\ \n( o.o )\n > ^ < \n/     \\",
+            frame2 = " /\\_/\\ \n( -.- )\n > = < \n/     \\"
+        ),
+        SpeciesSpec(
+            name = "Rabbit",
+            description = "High energy, quick executor. Spams automated tests at lightspeed.",
+            baseDebugging = 45,
+            basePatience = 50,
+            baseChaos = 75,
+            baseWisdom = 30,
+            baseSnark = 35,
+            frame1 = " (\\_/)\n (o.o)\n (> <)\n (\")(\")",
+            frame2 = " (\\_/)\n (O.O)\n (vvvv)\n (\")(\")"
+        ),
+        SpeciesSpec(
+            name = "Hedgehog",
+            description = "Sharp, defensive, but safe. Protects production against rogue brute-force attacks.",
+            baseDebugging = 75,
+            basePatience = 80,
+            baseChaos = 20,
+            baseWisdom = 50,
+            baseSnark = 40,
+            frame1 = "  .|||||.  \n .|||||||.\n / o   o \\ \n \\_  _  _/ \n  \" \" \" \"  ",
+            frame2 = "  ,|||||,  \n ,|||||||,\n / -   - \\ \n \\_  =  _/ \n   \"   \"   "
+        ),
+        SpeciesSpec(
+            name = "Squirrel",
+            description = "Spastic compiler hopper. Hoards logic branches, occasionally gets distracted by syntax.",
+            baseDebugging = 55,
+            basePatience = 30,
+            baseChaos = 85,
+            baseWisdom = 30,
+            baseSnark = 50,
+            frame1 = "  (\\_/)  . \n  (o.o) /  \n  (> <)/   \n  (\")(\")   ",
+            frame2 = "  (\\_/)  | \n  (O.O) /  \n  (> <)/   \n  (\")(\")   "
+        ),
+        SpeciesSpec(
+            name = "Deer",
+            description = "Graceful coordinator. Highly sensitive to memory leaks and pointer overflows.",
+            baseDebugging = 60,
+            basePatience = 85,
+            baseChaos = 15,
+            baseWisdom = 70,
+            baseSnark = 15,
+            frame1 = "  \\\\_//   \n  (o.o)   \n  ( v )   \n  /| |\\   ",
+            frame2 = "  \\\\_//   \n  (O.O)   \n  (  - )  \n  /| |\\   "
+        ),
+        SpeciesSpec(
+            name = "Raccoon",
+            description = "Masked garbage collection expert. Sifts through core dumps looking for memory scraps.",
+            baseDebugging = 70,
+            basePatience = 30,
+            baseChaos = 90,
+            baseWisdom = 40,
+            baseSnark = 80,
+            frame1 = " /\\_/\\ \n(=^Y^=)\n \\_=_/ \n (\")(\")",
+            frame2 = " /\\_/\\ \n(=oYo=)\n \\_x_/ \n (\")(\")"
+        ),
+        SpeciesSpec(
+            name = "Koala",
+            description = "Zzz... Consumes immense amounts of compute power and sleeps 22 hours a day.",
+            baseDebugging = 50,
+            basePatience = 90,
+            baseChaos = 10,
+            baseWisdom = 50,
+            baseSnark = 15,
+            frame1 = " (~\\_/ )~ \n ( o.o ) \n /(_ _)\\ \n  (\")(\") ",
+            frame2 = " (~\\_/ )~ \n ( O.O ) \n /(_o_)\\ \n  (\")(\") "
+        ),
+        SpeciesSpec(
+            name = "Panda",
+            description = "Friendly offline-first developer. Loves bamboo, custom git branches, and restful API breaks.",
+            baseDebugging = 50,
+            basePatience = 85,
+            baseChaos = 20,
+            baseWisdom = 60,
+            baseSnark = 20,
+            frame1 = " (o\\_/o) \n  (o.o)  \n <( . )> \n  (\")(\") ",
+            frame2 = " (O\\_/O) \n  (-.-)  \n <( . )> \n  (\")(\") "
+        ),
+        SpeciesSpec(
+            name = "Tiger",
+            description = "Ferocious code auditor. Pounces immediately on syntax warnings and code duplication.",
+            baseDebugging = 80,
+            basePatience = 40,
+            baseChaos = 65,
+            baseWisdom = 55,
+            baseSnark = 45,
+            frame1 = " /\\_/\\  \n(=o.o=)  \n/ | | \\ \n\\/\\_/\\/ ",
+            frame2 = " /\\_/\\  \n(=O.O=)  \n/ |X| \\ \n\\/\\_/\\/ "
+        ),
+        SpeciesSpec(
+            name = "Lion",
+            description = "Flamboyant tech lead. Strongly insists on using bleeding edge native modules.",
+            baseDebugging = 75,
+            basePatience = 60,
+            baseChaos = 45,
+            baseWisdom = 70,
+            baseSnark = 40,
+            frame1 = " (\\|//) \n ( o.o )\n  \\_=_/ \n  / | \\ ",
+            frame2 = " (\\|//) \n ( O.O )\n  \\_o_/ \n  / | \\ "
+        ),
+        SpeciesSpec(
+            name = "Elephant",
+            description = "Sub-millisecond memory compiler. Remembers every single global constant, never forgets a leak.",
+            baseDebugging = 80,
+            basePatience = 90,
+            baseChaos = 10,
+            baseWisdom = 95,
+            baseSnark = 10,
+            frame1 = "  /\\_/\\  \n / o o \\ \n(   V   )\n )_ | _( \n   |||   ",
+            frame2 = "  /\\_/\\  \n / O O \\ \n(   v   )\n )_ ^ _( \n    |    "
+        ),
+        SpeciesSpec(
+            name = "Giraffe",
+            description = "High-level visual architecture supervisor. Looks down upon poor formatting.",
+            baseDebugging = 65,
+            basePatience = 75,
+            baseChaos = 20,
+            baseWisdom = 75,
+            baseSnark = 30,
+            frame1 = "  \\\\_// \n  (o.o) \n    ||  \n    ||  \n   /  \\ ",
+            frame2 = "  \\\\_// \n  (O.O) \n    ||  \n    ||  \n   [  ] "
+        )
+    )
+
+    fun getByName(name: String): SpeciesSpec {
+        return list.firstOrNull { it.name.lowercase() == name.lowercase() }
+            ?: list.first()
+    }
+}
