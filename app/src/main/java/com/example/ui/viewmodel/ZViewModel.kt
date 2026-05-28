@@ -408,9 +408,11 @@ class ZViewModel(private val repository: ZRepository) : ViewModel() {
     private fun handleLocalCommand(input: String, pet: PetEntity): Boolean {
         // Normalize command: split on whitespace, strip leading '/'
         val parts = input.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }
-        val command = parts.getOrNull(0)?.replacePrefix("/")?.lowercase() ?: return false
+        val rawCmd = parts.getOrNull(0) ?: return false
+        val command = if (rawCmd.startsWith("/")) rawCmd.substring(1) else rawCmd
+        val cmdLower = command.lowercase()
 
-        return when (command) {
+        return when (cmdLower) {
             "help", "cmds", "commands" -> {
                 addLog(pet.name, "HELP",
                     """Available commands:
@@ -462,13 +464,16 @@ Lv ${pet.level} XP ${pet.xp}/100
                     else     -> "UNKNOWN MODE"
                 }
                 addLog(pet.name, "MODE", label)
-                setTerminalTheme(if (listOf("matrix", "green").contains(mode)) "Matrix Green"
-                else if (listOf("amber", "amber glow").contains(mode)) "Amber Glow"
-                else if (listOf("blue", "commodore", "commodore blue").contains(mode)) "Commodore Blue"
-                else if (listOf("pink", "cyberpunk", "cyberpunk pink").contains(mode)) "Cyberpunk Pink"
-                else if (listOf("white", "classic", "classic white").contains(mode)) "Classic White"
-                else if (listOf("dark", "elegant", "elegant dark").contains(mode)) "Elegant Dark"
-                else "Elegant Dark"
+                val themeFromMode = when (mode) {
+                    "matrix", "green" -> "Matrix Green"
+                    "amber", "amber glow" -> "Amber Glow"
+                    "blue", "commodore", "commodore blue" -> "Commodore Blue"
+                    "pink", "cyberpunk", "cyberpunk pink" -> "Cyberpunk Pink"
+                    "white", "classic", "classic white" -> "Classic White"
+                    "dark", "elegant", "elegant dark" -> "Elegant Dark"
+                    else -> "Elegant Dark"
+                }
+                setTerminalTheme(themeFromMode)
                 true
             }
             "theme" -> {
@@ -492,9 +497,11 @@ Lv ${pet.level} XP ${pet.xp}/100
                     "elegant dark" to "Elegant Dark"
                 )
                 val theme = themeMap[themeRaw]
-                if (theme == null) addLog("HELP", "THEME",
-                    """Valid theme keywords: matrix, amber, blue, blue‑commodore, pink, cyberpunk, white, classic, dark.""")
-                else {
+                if (theme == null) {
+                    addLog("HELP", "THEME",
+                        "Valid theme keywords: matrix, amber, blue, pink, white, dark.")
+                    true
+                } else {
                     setTerminalTheme(theme)
                     addLog(pet.name, "THEME", "Switched UI to $theme")
                     true

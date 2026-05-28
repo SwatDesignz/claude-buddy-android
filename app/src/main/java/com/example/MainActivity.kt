@@ -722,7 +722,7 @@ fun PetConsoleView(
                         }
                     }
                 }
-                Divider(
+                HorizontalDivider(
                     color = themeColor.copy(alpha = 0.2f),
                     modifier = Modifier
                         .fillMaxHeight()
@@ -843,7 +843,7 @@ fun PetConsoleView(
                     }
                 }
 
-                Divider(color = themeColor.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(color = themeColor.copy(alpha = 0.15f), modifier = Modifier.padding(vertical = 8.dp))
 
                 // Statistics metrics readouts
                 Column(
@@ -1287,7 +1287,7 @@ fun HatcheryView(
                                             )
                                         }
                                     }
-                                    Divider(color = Color(0xFF1C1E24))
+                                    HorizontalDivider(color = Color(0xFF1C1E24))
                                 }
                             }
                         }
