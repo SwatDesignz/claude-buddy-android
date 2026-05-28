@@ -6,13 +6,7 @@ A retro Terminal Pet for your Android device. Think Tamagotchi meets modern comp
 ZXBuddy is a lightweight, offline-first Android companion app. It drops a classic virtual pet right into a retro ASCII-styled terminal interface. It is built for engineers, hackers, and terminal lovers who want a digital desk companion that speaks their language.
 
     
-## The Core Loop
-ZXBuddy blends classic care mechanics with developer-focused stats.
 
-* Pet Lifecycle: Watch your companion grow from Baby to Teen to Adult. Each stage alters their personality traits and stat curves.
-* Care Meters: Keep an eye on Hunger, Happiness, Energy, Patience, and Chaos.
-* Hacker Actions: /feed restores energy. /train or /patch runs a mini code-patch simulation for XP. /play pokes the pet to alter its mood.
-* Dev Stats: Your pet tracks your debugging power, wisdom, chaos coefficient, and snark level.
 * Terminal Themes: Switch palettes instantly between Matrix Green, Amber Glow, Commodore Blue, Cyberpunk Pink, or classic dark/light modes.
 * Hybrid Modes: Toggle between Dev, Personal, Focus, or AI Mentor modes to change how your pet reacts to you.
 
