@@ -9,6 +9,16 @@ ZXBuddy is a lightweight, offline-first Android companion app. It drops a classi
 
 * Terminal Themes: Switch palettes instantly between Matrix Green, Amber Glow, Commodore Blue, Cyberpunk Pink, or classic dark/light modes.
 * Hybrid Modes: Toggle between Dev, Personal, Focus, or AI Mentor modes to change how your pet reacts to you.
+    ______________________________________
+   /                                      \
+
+  |   ZXBuddy v1.0.0                       |
+  |   > [==============] 100% HEALTH   |
+  |   > STATUS: RUNNING                    |
+  |   > CHAOS LEVEL: HIGH                  |
+   \______________________________________/
+               ||                  ||
+
 
 ------------------------------
 ##  Completely Offline-First
@@ -40,10 +50,12 @@ You will need Java 21, the Android SDK, and Gradle. If you use Homebrew, set it 
 brew install openjdk@21 gradle
 brew install --cask android-sdk
 
+
 Configure your environment variables in your .bashrc or .zshrc:
 
 export ANDROID_HOME=$HOME/android-sdk
 export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
 
 ## 2. SDK Licenses & Packages
 Accept the Android licenses and install the specific target platform:
@@ -51,20 +63,23 @@ Accept the Android licenses and install the specific target platform:
 yes | sdkmanager --licenses
 sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
+
 ## 3. Generate the Debug Keystore
 Gradle expects a local debug.keystore file in the project root to sign your development builds:
 
 keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US"
 
+
 ------------------------------
 ##  Building & Running
+
 
 # 1. Grab the repository
 git clone <repo‑url>
 cd zx_buddyv1
+
 # 2. Build the binaries
 ./gradlew --no-configuration-cache assembleDebug
-
 
 * Debug APK destination: app/build/outputs/apk/debug/app-debug.apk
 * Android Studio: Select Open Project, point to the zx_buddyv1 folder, and hit Sync Project with Gradle Files.
