@@ -171,7 +171,7 @@ fun ZBuddyTerminalApp(viewModel: ZViewModel) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "ZIG",
+                            text = "ZXB",
                             color = Color(0xFF381E72),
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,

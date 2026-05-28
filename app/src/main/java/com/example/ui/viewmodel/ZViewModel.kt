@@ -462,7 +462,7 @@ class ZViewModel(private val repository: ZRepository) : ViewModel() {
             }
             "stats", "profile" -> {
                 addLog(pet.name, "STATS",
-                    """${pet.name}: ${pet.species} ${pet.rarity} ${pet.lifecycle}
+                    """${pet.name}: ${pet.species} ${pet.rarity}
 Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
 ⚡ Energy ${pet.energy}% | 🍽️ Hunger ${pet.hunger}%
 😊 Happiness ${_happiness.value}% | 🧼 Hygiene ${_hygiene.value}%

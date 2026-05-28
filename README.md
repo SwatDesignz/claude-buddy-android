@@ -63,6 +63,11 @@ cd zx_buddyv1
 export ANDROID_HOME=$HOME/android-sdk
 export JAVA_HOME=$HOME/linuxbrew/Cellar/openjdk@21/21.0.11
 export PATH=$PATH:$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+# Release signing (keystore file + env vars — never commit these)
+export KEYSTORE_PATH=/path/to/my-upload-key.jks
+export STORE_PASSWORD=<your-store-password>
+export KEY_PASSWORD=<your-key-password>
 ```
 
 ## Running the App
@@ -94,6 +99,8 @@ export PATH=$PATH:$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID
 - **⚽ Mini‑game prototype** – core loop ready; UI polishing pending.  
 - **🔓 Premium species unlock** – design drafted; implementation pending premium subscription flow.  
 - **🔗 BLE Desktop pairing** – UI scaffolding added; functional pairing pending integration test.  
+- **🔐 SSH pairing & remote debugging** – remote shell tunnel to pet; wire debugging terminal sessions through ADB or local SSH server. Planned.
+- **📡 Wireless & weird debugging connections** – ADB-over-WiFi, USB serial fallback, NFC tap-to-pair, Morse-code BLE beacon, and other unconventional device-link experiments. Planned.
 - **🚀 Official Play Store deployment** – prepare signing pipeline and store metadata.
 
 ## Contributing
