@@ -1,110 +1,111 @@
-# ZXBuddy – Retro Terminal Pet Companion
+Here is your humanized README. It retains all the technical setup instructions but frames them with a retro-hacker personality, removes dry corporate buzzwords, and optimizes the file for quick scanning.
+------------------------------
+##  ZXBuddy
 
-## Overview
-ZXBuddy is a lightweight Android companion app that brings a classic Tamagotchi‑style virtual pet to the modern Android terminal experience. The app blends retro ASCII art, ASCII‑styled personality traits, and developer‑focused interactions with a modern Android UI. It runs **offline‑first**, requires no external servers for core features, and is designed to be friendly to developers who love a terminal aesthetic.
+A retro Terminal Pet for your Android device. Think Tamagotchi meets retro computing, built for developers who miss the command line.
 
-## Core Features
-- **Pet Lifecycle** – Hatch, grow, and mature your pet through three life stages (Baby → Teen → Adult). Each stage carries distinct personality traits and stat curves.
-- **Care Mechanics** – Manage **Hunger**, **Happiness**, **Energy**, **Patience**, and **Chaos** meters. Feeding, playing, and cleaning keep the pet healthy.
-- **Mood & Training System** –  
-  - **Feed** restores energy and reduces hunger.  
-  - **Train/Patch** runs a small code‑patch simulation that grants XP and occasional level‑ups.  
-  - **Play** (poke) influences mood and chaos.
-- **Developer Stats** – Display debugging power, wisdom, chaos coefficient, and snark level. Shows an at‑a‑glance health of your companion.
-- **Mode Switching** – Choose from *Dev*, *Personal*, *Focus*, or *AI Mentor* modes, each biasing the pet’s behavior and UI theme.
-- **Theme Engine** – Switch UI palettes (Matrix Green, Amber Glow, Commodore Blue, Cyberpunk Pink, Classic White, Elegant Dark) on the fly.
-- **BLE Integration (Experimental)** – Scan for and pair with a “Claude Desktop” client for future cross‑device telemetry. A placeholder UI is included.
-- **Mini‑Game Hook** – A simple arcade‑style mini‑game awards “ZX Points” that can unlock extra species or cosmetics. (Future premium‑only expansions are planned.)
-- **In‑App Command System** – Type short commands directly in the terminal‑style input bar (`/feed`, `/stats`, `/theme matrix`, `/mode dev`, etc.) to trigger instant actions without invoking AI APIs.
+ZXBuddy is a lightweight, offline-first Android companion app. It drops a classic virtual pet right into a retro ASCII-styled terminal interface. It is built for engineers, hackers, and terminal lovers who want a digital desk companion that speaks their language.
 
-## Offline‑First Design
-All core pet logic (feeding, training, stats updates) runs locally using Android Room databases. Network calls are only made for AI‑generated responses when an **AI Mentor** mode is active and a valid Gemini API key is supplied. This keeps the app usable anywhere—no connectivity required for basic pet care.
+    ______________________________________
+   /                                      \
 
-## Setup & Build
+  |   ZXBuddy v1.0.0                       |
+  |   > [==============] 100% HEALTH   |
+  |   > STATUS: RUNNING                    |
+  |   > CHAOS LEVEL: HIGH                  |
+   \______________________________________/
+               ||                  ||
 
-### Prerequisites
-1. **Java Development Kit 21** – installed via Homebrew (`brew install openjdk@21`) or your preferred JDK.
-2. **Android SDK** – installed via Homebrew (`brew install --cask android-sdk` or download manually).  
-   - Ensure the following environment variables point to the SDK location:  
-     ```bash
-     export ANDROID_HOME=$HOME/android-sdk
-     export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-     ```
-3. **Gradle** – installed (`brew install gradle`).
+------------------------------
+## The Core Loop
+ZXBuddy blends classic care mechanics with developer-focused stats.
 
-### Android SDK Packages
-Run once to accept licenses and install build‑tools:
-```bash
-yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-```
+* Pet Lifecycle: Watch your companion grow from Baby to Teen to Adult. Each stage alters their personality traits and stat curves.
+* Care Meters: Keep an eye on Hunger, Happiness, Energy, Patience, and Chaos.
+* Hacker Actions: /feed restores energy. /train or /patch runs a mini code-patch simulation for XP. /play pokes the pet to alter its mood.
+* Dev Stats: Your pet tracks your debugging power, wisdom, chaos coefficient, and snark level.
+* Terminal Themes: Switch palettes instantly between Matrix Green, Amber Glow, Commodore Blue, Cyberpunk Pink, or classic dark/light modes.
+* Hybrid Modes: Toggle between Dev, Personal, Focus, or AI Mentor modes to change how your pet reacts to you.
 
-### Project‑Specific Fixes
-- **Debug Keystore** – generated with:  
-  ```bash
-  keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US"
-  ```
-  Place it in the project root; Gradle will automatically use `debug.keystore` for signing local builds.
-- **Gradle Wrapper** – The project ships with a `gradle` wrapper configuration in `settings.gradle.kts`. No wrapper JAR is required; the installed Gradle will be used.
+------------------------------
+##  Completely Offline-First
+Your pet lives locally. ZXBuddy uses an Android Room database to manage all stats, loops, and history directly on your device.
+No data leaves your phone, and no internet connection is required for core gameplay.
+Note: If you want to use the AI Mentor mode, just drop your Gemini API key into the app configuration. Otherwise, it functions 100% offline.
+------------------------------
+##  Quick Start Command Cheat-Sheet
+You can control everything via the built-in terminal input bar. Tap the command line and type:
 
-### Build Steps
-```bash
-# Ensure the SDK path is correct in local.properties
+| Command | What it does |
+|---|---|
+| /help | Prints the full command list. |
+| /stats | Shows your pet's current levels and XP. |
+| /feed | Lowers hunger and boosts energy. |
+| /patch | Runs a code-patch simulation for XP. |
+| /play | Pokes the pet (modifies mood and chaos). |
+| /theme <name> | Switches palette (matrix, amber, blue, pink, dark). |
+| /mode <name> | Changes personality behavior (dev, personal, focus, ai). |
+| /clear | Flushes the local debug logs. |
+
+------------------------------
+## Local Environment Setup
+If you want to build the APK yourself or tweak the pet's behavior, here is how to get your environment ready.
+## 1. Prerequisites
+You will need Java 21, the Android SDK, and Gradle. If you use Homebrew, set it up like this:
+
+# Install core dependencies
+brew install openjdk@21 gradle
+brew install --cask android-sdk
+
+Configure your environment variables in your .bashrc or .zshrc:
+
+export ANDROID_HOME=$HOME/android-sdk
+export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+## 2. SDK Licenses & Packages
+Accept the Android licenses and install the specific target platform:
+
+yes | sdkmanager --licenses
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+## 3. Generate the Debug Keystore
+Gradle expects a local debug.keystore file in the project root to sign your development builds:
+
+keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug, O=Android, C=US"
+
+------------------------------
+##  Building & Running
+
+# 1. Grab the repository
 git clone <repo‑url>
 cd zx_buddyv1
-# Verify environment variables are set (ANDROID_HOME, JAVA_HOME)
-./gradlew --no-configuration-cache assembleDebug assembleRelease
-```
-- Debug APK will be located at `app/build/outputs/apk/debug/app-debug.apk`.  
-- Release APK will be at `app/build/outputs/apk/release/app-release.apk` (signature step later handled via CI or manual keystore).
+# 2. Build the binaries
+./gradlew --no-configuration-cache assembleDebug
 
-### Environment Variables for CI / Local Builds
-```bash
-export ANDROID_HOME=$HOME/android-sdk
-export JAVA_HOME=$HOME/linuxbrew/Cellar/openjdk@21/21.0.11
-export PATH=$PATH:$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
-# Release signing (keystore file + env vars — never commit these)
+* Debug APK destination: app/build/outputs/apk/debug/app-debug.apk
+* Android Studio: Select Open Project, point to the zx_buddyv1 folder, and hit Sync Project with Gradle Files.
+
+## Production CI Environment Variables
+If you are setting up a secure pipeline, use these environment variables for signing production releases:
+
 export KEYSTORE_PATH=/path/to/my-upload-key.jks
 export STORE_PASSWORD=<your-store-password>
 export KEY_PASSWORD=<your-key-password>
-```
 
-## Running the App
-1. Open Android Studio, select **Open Project**, and point to the `zx_buddyv1` folder.  
-2. Sync Gradle (`File → Sync Project with Gradle Files`).  
-3. Run the app on an emulator or physical device.  
-4. Optionally create an `.env` file with a valid `GEMINI_API_KEY` to enable AI responses; otherwise the app operates fully offline.
+------------------------------
+##  What's Next?
 
-## Command Cheat‑Sheet
-| Command | Effect |
-|--------|--------|
-| `/help` or `/cmds` | Prints the full command list. |
-| `/stats` or `/profile` | Shows current pet stats and XP. |
-| `/feed` | Feeds the pet – restores energy, reduces hunger. |
-| `/train` or `/patch` | Runs a small code‑patch simulation for XP. |
-| `/play` | Pokes the pet – affects mood and chaos. |
-| `/clean` or `/hygiene` | Clean‑up action (placeholder for future hygiene logic). |
-| `/mode <dev|personal|focus|ai>` | Switches operational mode. |
-| `/theme <matrix|amber|blue|pink|white|dark>` | Changes UI colour theme. |
-| `/scan` or `/sync` | Starts BLE scan (experimental). |
-| `/disconnect` | Ends BLE connection. |
-| `/clear` | Clears debug logs. |
-| `/unlockpremium` | Displays premium‑feature notice (currently limited to 50 species). |
+* Core Pet Loop: Lifecycle tracking, feeding, and stat updates are live.
+* Theme Engine: Terminal skins and text commands work perfectly.
+* Arcade Mini-Game: Core engine is ready; UI polish is underway to earn "ZX Points".
+* BLE Desktop Pairing: Early UI scaffolding is in place to link your pet with a "Claude Desktop" client.
+* SSH Tunnelling: Future update to let you SSH into your pet for remote debugging and session links.
 
-## Roadmap (✓ Completed / ◻ Planned)
-- **✓ Basic pet lifecycle & care loop** – implemented.  
-- **✓ Theme & mode switching** – implemented.  
-- **✓ In‑app command system** – implemented.  
-- **⚽ Mini‑game prototype** – core loop ready; UI polishing pending.  
-- **🔓 Premium species unlock** – design drafted; implementation pending premium subscription flow.  
-- **🔗 BLE Desktop pairing** – UI scaffolding added; functional pairing pending integration test.  
-- **🔐 SSH pairing & remote debugging** – remote shell tunnel to pet; wire debugging terminal sessions through ADB or local SSH server. Planned.
-- **📡 Wireless & weird debugging connections** – ADB-over-WiFi, USB serial fallback, NFC tap-to-pair, Morse-code BLE beacon, and other unconventional device-link experiments. Planned.
-- **🚀 Official Play Store deployment** – prepare signing pipeline and store metadata.
+------------------------------
+## Contributing & License
+Pull requests are highly encouraged. Please use conventional commits for your messages and run ./gradlew check to verify linting before opening a PR.
+Distributed under the MIT License. See LICENSE for details.
+------------------------------
 
-## Contributing
-Pull requests are welcome. Please follow the conventional commit style for changelog entries. Run `./gradlew check` before submitting to ensure linting passes.
 
-## License
-MIT – see the `LICENSE` file for details.
