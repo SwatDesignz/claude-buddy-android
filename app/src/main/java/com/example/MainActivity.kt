@@ -340,20 +340,21 @@ fun ZBuddyTerminalApp(viewModel: ZViewModel) {
                             )
                         } else {
                             recentLogs.asReversed().map { log ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                val logColor = when (log.tag) {
+                                    "ERROR" -> Color(0xFFFF5F56)
+                                    "SYSTEM" -> Color(0xFFD0BCFF)
+                                    "BLE" -> Color(0xFFBFCBAD)
+                                    "HATCH" -> Color(0xFFD0BCFF)
+                                    "CARE" -> Color(0xFFBFCBAD)
+                                    "INTERACT" -> Color(0xFFD0BCFF)
+                                    "AI_PENDING" -> Color(0xFFFFBD2E)
+                                    else -> themeColor.copy(alpha = 0.6f)
+                                }
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
                                 ) {
-                                    val logColor = when (log.tag) {
-                                        "ERROR" -> Color(0xFFFF5F56) // Matching red window button color
-                                        "SYSTEM" -> Color(0xFFD0BCFF) // Consistent lavender
-                                        "BLE" -> Color(0xFFBFCBAD) // Sage green
-                                        "HATCH" -> Color(0xFFD0BCFF)
-                                        "CARE" -> Color(0xFFBFCBAD)
-                                        "INTERACT" -> Color(0xFFD0BCFF)
-                                        "AI_PENDING" -> Color(0xFFFFBD2E)
-                                        else -> themeColor.copy(alpha = 0.6f)
-                                    }
                                     Text(
                                         text = "[${SimpleDateFormat("HH:mm:ss", Locale.US).format(log.timestamp)}] [${log.tag}]",
                                         fontFamily = FontFamily.Monospace,
@@ -364,10 +365,9 @@ fun ZBuddyTerminalApp(viewModel: ZViewModel) {
                                     Text(
                                         text = log.message,
                                         fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFFE6E1E5), // Light warm gray
+                                        color = Color(0xFFE6E1E5),
                                         fontSize = 10.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
+                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }

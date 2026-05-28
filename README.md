@@ -69,7 +69,7 @@ export PATH=$PATH:$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID
 1. Open Android Studio, select **Open Project**, and point to the `zx_buddyv1` folder.  
 2. Sync Gradle (`File → Sync Project with Gradle Files`).  
 3. Run the app on an emulator or physical device.  
-4. The first launch will prompt you to create an `.env` file with a valid **Gemini API key** if you wish to enable AI responses; otherwise the app operates fully offline.
+4. Optionally create an `.env` file with a valid `GEMINI_API_KEY` to enable AI responses; otherwise the app operates fully offline.
 
 ## Command Cheat‑Sheet
 | Command | Effect |

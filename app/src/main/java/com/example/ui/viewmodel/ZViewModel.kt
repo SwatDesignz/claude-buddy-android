@@ -63,6 +63,15 @@ class ZViewModel(private val repository: ZRepository) : ViewModel() {
 
     private val r = Random()
 
+    private val _happiness = MutableStateFlow(80)
+    val happiness: StateFlow<Int> = _happiness.asStateFlow()
+
+    private val _hygiene = MutableStateFlow(90)
+    val hygiene: StateFlow<Int> = _hygiene.asStateFlow()
+
+    private val _zxPoints = MutableStateFlow(0)
+    val zxPoints: StateFlow<Int> = _zxPoints.asStateFlow()
+
     init {
         // Animation ticker to alternate pet ASCII frames roughly every 1.5 seconds for idle 60fps vibes
         viewModelScope.launch {
@@ -72,17 +81,38 @@ class ZViewModel(private val repository: ZRepository) : ViewModel() {
             }
         }
 
+        // Care loop: decay hunger, happiness, and hygiene over time
+        viewModelScope.launch {
+            while (true) {
+                delay(15000) // every 15 seconds
+                val pet = activePet.value ?: continue
+                // Hunger increases (gets worse) over time
+                val newHunger = (pet.hunger + 3).coerceAtMost(100)
+                // Happiness decays slowly
+                val newHappiness = (_happiness.value - 2).coerceAtLeast(0)
+                // Hygiene decays
+                val newHygiene = (_hygiene.value - 1).coerceAtLeast(0)
+                _happiness.value = newHappiness
+                _hygiene.value = newHygiene
+                repository.updatePet(pet.copy(hunger = newHunger, lastUpdated = System.currentTimeMillis()))
+                // Warn if stats are critically low
+                if (newHunger > 80) addLog(pet.name, "CARE", "⚠️ ${pet.name} is getting hungry! Feed them soon.")
+                if (newHappiness < 20) addLog(pet.name, "CARE", "⚠️ ${pet.name} is feeling down. Play with them!")
+                if (newHygiene < 20) addLog(pet.name, "CARE", "⚠️ ${pet.name} needs cleaning!")
+            }
+        }
+
         // Initialize default greeting and system checks
         _terminalColorTheme.value = "Elegant Dark"
         viewModelScope.launch {
             delay(500)
             val directPet = repository.getActivePetDirect()
             if (directPet == null) {
-                addLog("SYSTEM", "CORE", "Z-XBuddy Zig virtual engine build v0.16.2 initiated successfully.")
+                addLog("SYSTEM", "CORE", "ZXBuddy virtual engine build v0.16.2 initiated successfully.")
                 addLog("SYSTEM", "CORE", "WARNING: No terminal companion active. Use the Hatchery tab to mobilize a pet!")
             } else {
                 addLog(directPet.name, "SYSTEM", "Zig virtual pet companion loaded. ${directPet.name} is ONLINE.")
-                addLog(directPet.name, "SYSTEM", "Rarity: ${directPet.rarity} | Level: ${directPet.level} | Personality specs: DBG:${directPet.debugging} SLW:${directPet.patience} CHS:${directPet.chaos}")
+                addLog(directPet.name, "SYSTEM", "Rarity: ${directPet.rarity} | Level: ${directPet.level} | Happiness: ${_happiness.value}% | Hygiene: ${_hygiene.value}%")
             }
         }
     }
@@ -432,9 +462,10 @@ class ZViewModel(private val repository: ZRepository) : ViewModel() {
             }
             "stats", "profile" -> {
                 addLog(pet.name, "STATS",
-                    """${pet.name}: ${pet.species} ${pet.rarity}
-Lv ${pet.level} XP ${pet.xp}/100
+                    """${pet.name}: ${pet.species} ${pet.rarity} ${pet.lifecycle}
+Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
 ⚡ Energy ${pet.energy}% | 🍽️ Hunger ${pet.hunger}%
+😊 Happiness ${_happiness.value}% | 🧼 Hygiene ${_hygiene.value}%
 📊 DBG ${pet.debugging} | 🔮 WIS ${pet.wisdom} | 🌀 CHA ${pet.chaos} | 🗣️ SNK ${pet.snark}""")
                 true
             }
@@ -450,8 +481,20 @@ Lv ${pet.level} XP ${pet.xp}/100
                 pokePet()
                 true
             }
+            "zxgame", "minigame", "arcade" -> {
+                val points = r.nextInt(15) + 5
+                _zxPoints.value = _zxPoints.value + points
+                _happiness.value = (_happiness.value + 5).coerceAtMost(100)
+                addLog(pet.name, "ARCADE", "🎮 ZX-Game complete! Earned $points ZX Points. Total: ${_zxPoints.value}. Happy +5%!")
+                true
+            }
+            "shop", "buy" -> {
+                addLog(pet.name, "SHOP", "ZX Points: ${_zxPoints.value}. Free tier: 50 species variants. Premium unlocks 50,000+ genetic combinations!")
+                true
+            }
             "clean", "hygiene" -> {
-                addLog(pet.name, "HYGIENE", "Computed internal clean‑up; no external effect yet.")
+                _hygiene.value = 100
+                addLog(pet.name, "HYGIENE", "Cleaned ${pet.name}! Hygiene restored to 100%.")
                 true
             }
             "mode" -> {
