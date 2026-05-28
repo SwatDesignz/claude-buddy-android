@@ -5,17 +5,7 @@ A retro Terminal Pet for your Android device. Think Tamagotchi meets retro compu
 
 ZXBuddy is a lightweight, offline-first Android companion app. It drops a classic virtual pet right into a retro ASCII-styled terminal interface. It is built for engineers, hackers, and terminal lovers who want a digital desk companion that speaks their language.
 
-    ______________________________________
-   /                                      \
-
-  |   ZXBuddy v1.0.0                       |
-  |   > [==============] 100% HEALTH   |
-  |   > STATUS: RUNNING                    |
-  |   > CHAOS LEVEL: HIGH                  |
-   \______________________________________/
-               ||                  ||
-
-------------------------------
+    
 ## The Core Loop
 ZXBuddy blends classic care mechanics with developer-focused stats.
 
