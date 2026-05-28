@@ -20,3 +20,4 @@ my-upload-key.jks
 release.keystore
 *.jks
 *.keystore
+apk/

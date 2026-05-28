@@ -101,6 +101,7 @@ export KEY_PASSWORD=<your-key-password>
 - **🔗 BLE Desktop pairing** – UI scaffolding added; functional pairing pending integration test.  
 - **🔐 SSH pairing & remote debugging** – remote shell tunnel to pet; wire debugging terminal sessions through ADB or local SSH server. Planned.
 - **📡 Wireless & weird debugging connections** – ADB-over-WiFi, USB serial fallback, NFC tap-to-pair, Morse-code BLE beacon, and other unconventional device-link experiments. Planned.
+- **◻ Dependency injection with Hilt** — current manual ViewModelProvider.Factory is adequate for the single-screen scope; revisit once Firebase, remote sync, or multi-Activity navigation is added.
 - **🚀 Official Play Store deployment** – prepare signing pipeline and store metadata.
 
 ## Contributing
