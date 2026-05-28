@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Random
 
-class ZViewModel(private val repository: ZRepository) : ViewModel() {
+class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 
     val allPets: StateFlow<List<PetEntity>> = repository.allPets
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -601,11 +601,11 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
     }
 }
 
-class ZViewModelFactory(private val repository: ZRepository) : ViewModelProvider.Factory {
+class ZXDigitalPetViewFactory(private val repository: ZRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ZViewModel::class.java)) {
+        if (modelClass.isAssignableFrom(ZXDigitalPetView::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ZViewModel(repository) as T
+            return ZXDigitalPetView(repository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

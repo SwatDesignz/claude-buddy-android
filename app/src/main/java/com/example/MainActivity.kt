@@ -46,8 +46,8 @@ import com.example.data.db.ZRepository
 import com.example.data.model.SpeciesData
 import com.example.data.model.SpeciesSpec
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.viewmodel.ZViewModel
-import com.example.ui.viewmodel.ZViewModelFactory
+import com.example.ui.viewmodel.ZXDigitalPetView
+import com.example.ui.viewmodel.ZXDigitalPetViewFactory
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
@@ -66,11 +66,11 @@ class MainActivity : ComponentActivity() {
         ).fallbackToDestructiveMigration().build()
 
         val repository = ZRepository(database.petDao(), database.logDao())
-        val viewModelFactory = ZViewModelFactory(repository)
+        val viewModelFactory = ZXDigitalPetViewFactory(repository)
 
         setContent {
             MyApplicationTheme {
-                val viewModel: ZViewModel = viewModel(factory = viewModelFactory)
+                val viewModel: ZXDigitalPetView = viewModel(factory = viewModelFactory)
                 ZBuddyTerminalApp(viewModel = viewModel)
             }
         }
@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ZBuddyTerminalApp(viewModel: ZViewModel) {
+fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
     val activePet by viewModel.activePet.collectAsStateWithLifecycle()
     val allPets by viewModel.allPets.collectAsStateWithLifecycle()
     val recentLogs by viewModel.recentLogs.collectAsStateWithLifecycle()
@@ -615,7 +615,7 @@ fun CRTScanlineBox(
 @Composable
 fun PetConsoleView(
     activePet: PetEntity?,
-    viewModel: ZViewModel,
+    viewModel: ZXDigitalPetView,
     glowStyle: TextStyle,
     themeColor: Color,
     isGenerating: Boolean
@@ -1013,7 +1013,7 @@ fun PetStatusBar(label: String, percent: Int, color: Color) {
 
 @Composable
 fun HatcheryView(
-    viewModel: ZViewModel,
+    viewModel: ZXDigitalPetView,
     allPets: List<PetEntity>,
     glowStyle: TextStyle,
     themeColor: Color,
@@ -1318,7 +1318,7 @@ fun SpecMiniRow(statName: String, value: Int) {
 
 @Composable
 fun BluetoothSyncView(
-    viewModel: ZViewModel,
+    viewModel: ZXDigitalPetView,
     isScanning: Boolean,
     isConnected: Boolean,
     glowStyle: TextStyle,
@@ -1453,7 +1453,7 @@ fun BluetoothSyncView(
 
 @Composable
 fun TerminalThemesView(
-    viewModel: ZViewModel,
+    viewModel: ZXDigitalPetView,
     currentTheme: String,
     enableScanlines: Boolean,
     glowStyle: TextStyle,

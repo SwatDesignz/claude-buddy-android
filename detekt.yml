@@ -1,0 +1,97 @@
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+config:
+  validation: true
+  warningsAsErrors: true
+  checkExhaustiveness: true
+
+console-reports:
+  active: true
+
+output-reports:
+  active: true
+
+naming:
+  FunctionNaming:
+    functionPattern: '[a-z][a-zA-Z0-9]*'
+    excludes: ['**/test/**', '**/androidTest/**']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Z0-9]*'
+  MatchingDeclarationName:
+    active: true
+
+style:
+  MaxLineLength:
+    maxLineLength: 140
+  WildcardImport:
+    active: true
+    excludeImports: []
+  MagicNumber:
+    active: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/*.kt']
+    ignoreNumbers: ['-1', '0', '1', '2', '10', '100', '1000']
+    ignorePropertyDeclaration: true
+    ignoreAnnotation: true
+  UnusedPrivateMember:
+    active: true
+  ReturnCount:
+    active: true
+    max: 3
+  ForbiddenComment:
+    active: true
+    values: ['TODO:', 'FIXME:', 'STOPSHIP:']
+  MaxChainedCallsOnSameLine:
+    maxChainedCalls: 5
+  OptionalUnit:
+    active: true
+  NullableToStringCall:
+    active: true
+  UnnecessaryAbstractClass:
+    active: true
+
+complexity:
+  LongMethod:
+    active: true
+    threshold: 60
+  LongParameterList:
+    active: true
+    functionThreshold: 6
+    constructorThreshold: 8
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+  ComplexMethod:
+    active: true
+    threshold: 15
+  NestedBlockDepth:
+    active: true
+    threshold: 4
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 15
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: true
+  TooGenericExceptionThrown:
+    active: true
+
+coroutines:
+  GlobalCoroutineUsage:
+    active: true
+  SuspendFunWithCoroutineScopeReceiver:
+    active: true
+
+potential-bugs:
+  LateinitUsage:
+    active: true
+    excludeAnnotatedProperties: []
+  UnsafeCallOnNullableType:
+    active: true
+  UnsafeCast:
+    active: true
+  UselessPostfixExpression:
+    active: true
