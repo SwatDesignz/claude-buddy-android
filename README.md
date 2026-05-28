@@ -1,5 +1,4 @@
-Here is your humanized README. It retains all the technical setup instructions but frames them with a retro-hacker personality, removes dry corporate buzzwords, and optimizes the file for quick scanning.
-------------------------------
+
 ##  ZXBuddy
 
 A retro Terminal Pet for your Android device. Think Tamagotchi meets retro computing, built for developers who miss the command line.
