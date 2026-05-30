@@ -95,13 +95,11 @@ export KEY_PASSWORD=<your-key-password>
 - **✓ Basic pet lifecycle & care loop** – implemented.  
 - **✓ Theme & mode switching** – implemented.  
 - **✓ In‑app command system** – implemented.  
-- **⚽ Mini‑game prototype** – core loop ready; UI polishing pending.  
-- **🔓 Premium species unlock** – design drafted; implementation pending premium subscription flow.  
+- **⚽ Mini‑game prototype** – core loop ready; UI polishing pending.    
 - **🔗 BLE Desktop pairing** – UI scaffolding added; functional pairing pending integration test.  
 - **🔐 SSH pairing & remote debugging** – remote shell tunnel to pet; wire debugging terminal sessions through ADB or local SSH server. Planned.
 - **📡 Wireless & weird debugging connections** – ADB-over-WiFi, USB serial fallback, NFC tap-to-pair, Morse-code BLE beacon, and other unconventional device-link experiments. Planned.
 - **◻ Dependency injection with Hilt** — current manual ViewModelProvider.Factory is adequate for the single-screen scope; revisit once Firebase, remote sync, or multi-Activity navigation is added.
-- **🚀 Official Play Store deployment** – prepare signing pipeline and store metadata.
 
 ## Contributing
 Pull requests are welcome. Please follow the conventional commit style for changelog entries. Run `./gradlew check` before submitting to ensure linting passes.
