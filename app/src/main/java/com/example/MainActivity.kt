@@ -39,10 +39,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
+import com.example.data.db.AchievementEntity
 import com.example.data.db.AppDatabase
 import com.example.data.db.LogEntity
 import com.example.data.db.PetEntity
 import com.example.data.db.ZRepository
+import com.example.data.model.AchievementRegistry
 import com.example.data.model.SpeciesData
 import com.example.data.model.SpeciesSpec
 import com.example.data.model.lifecycle
@@ -66,9 +68,9 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             AppDatabase::class.java,
             "z_xbuddy_database"
-        ).fallbackToDestructiveMigration(false).build()
+        ).fallbackToDestructiveMigration(true).build()
 
-        val repository = ZRepository(database.petDao(), database.logDao())
+        val repository = ZRepository(database.petDao(), database.logDao(), database.achievementDao())
         val viewModelFactory = ZXDigitalPetViewFactory(repository)
 
         setContent {
@@ -106,8 +108,13 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
     val simonGame by viewModel.simonGame.collectAsStateWithLifecycle()
     val simonHighScore by viewModel.simonHighScore.collectAsStateWithLifecycle()
 
+    // Achievement states
+    val allAchievements by viewModel.allAchievements.collectAsStateWithLifecycle()
+    val unlockedCount by viewModel.unlockedCount.collectAsStateWithLifecycle()
+    val totalCount by viewModel.totalCount.collectAsStateWithLifecycle()
+
     // Screen State tab - UI controlled locally for ultra-fast, robust response times
-    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW, WILD, GAME
+    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW, WILD, GAME, ACHIEVE
 
     // Map theme names to cathode ray phosphoresces colors
     val themeColor = remember(currentTheme) {
@@ -306,6 +313,15 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                             activePet = activePet,
                             simonGame = simonGame,
                             highScore = simonHighScore,
+                            glowStyle = glowStyle,
+                            themeColor = themeColor
+                        )
+                    }
+                    "ACHIEVE" -> {
+                        AchievementsView(
+                            allAchievements = allAchievements,
+                            unlockedCount = unlockedCount,
+                            totalCount = totalCount,
                             glowStyle = glowStyle,
                             themeColor = themeColor
                         )
@@ -542,6 +558,15 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                         .weight(1f)
                         .testTag("tab_game"),
                     onClick = { activeTab = "GAME" }
+                )
+                TerminalTabButton(
+                    label = "F8:ACHV",
+                    isActive = activeTab == "ACHIEVE",
+                    activeColor = themeColor,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tab_achieve"),
+                    onClick = { activeTab = "ACHIEVE" }
                 )
             }
         }
@@ -2463,6 +2488,116 @@ fun SimonSaysView(
             fontFamily = FontFamily.Monospace,
             fontSize = 8.sp
         )
+    }
+}
+
+// ── Achievements Tab ─────────────────────────────────────────────────────────
+@Composable
+fun AchievementsView(
+    allAchievements: List<AchievementEntity>,
+    unlockedCount: Int,
+    totalCount: Int,
+    glowStyle: TextStyle,
+    themeColor: Color
+) {
+    val defs = AchievementRegistry.all
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "=== [ ACHIEVEMENTS ] ===",
+            style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Unlocked $unlockedCount / $totalCount achievements",
+            color = Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Progress bar
+        val progress = if (totalCount > 0) unlockedCount.toFloat() / totalCount else 0f
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = themeColor,
+            trackColor = Color(0xFF2B2930),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (defs.isEmpty()) {
+            Text(
+                text = "No achievements defined.",
+                color = Color.Gray,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+            return
+        }
+
+        for (def in defs) {
+            val entity = allAchievements.find { it.id == def.id }
+            val isUnlocked = entity != null && entity.unlockedAt > 0L
+            val currentProgress = entity?.progress ?: 0
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 3.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isUnlocked) Color(0xFF1A2E1A) else Color(0xFF1C1B1F)
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    if (isUnlocked) Color(0xFF27C93F).copy(alpha = 0.4f) else Color(0xFF49454F)
+                ),
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isUnlocked) def.icon else "🔒",
+                        fontSize = 18.sp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = def.title,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isUnlocked) Color(0xFF27C93F) else Color(0xFF938F99)
+                        )
+                        Text(
+                            text = def.description,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp,
+                            color = Color.Gray
+                        )
+                    }
+                    if (!isUnlocked && def.maxProgress > 1) {
+                        Text(
+                            text = "$currentProgress/${def.maxProgress}",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp,
+                            color = Color(0xFF938F99)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

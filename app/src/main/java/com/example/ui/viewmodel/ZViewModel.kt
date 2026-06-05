@@ -11,9 +11,11 @@ import com.example.data.api.OpenRouterRetrofitClient
 import com.example.data.api.OpenRouterRequest
 import com.example.data.api.OpenRouterMessage
 import com.example.data.api.RetrofitClient
+import com.example.data.db.AchievementEntity
 import com.example.data.db.LogEntity
 import com.example.data.db.PetEntity
 import com.example.data.db.ZRepository
+import com.example.data.model.AchievementRegistry
 import com.example.data.model.SpeciesData
 import com.example.data.model.AiProviderType
 import com.example.data.model.AiProviderConfig
@@ -147,6 +149,21 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
     // Selected AI provider
     private val _selectedProvider = MutableStateFlow(AiProviderType.Sandbox)
     val selectedProvider: StateFlow<AiProviderType> = _selectedProvider.asStateFlow()
+
+    // Achievement state
+    val allAchievements: StateFlow<List<AchievementEntity>> = repository.allAchievements
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val unlockedCount: StateFlow<Int> = repository.unlockedCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val totalCount: StateFlow<Int> = repository.totalCount
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // Session tracking counters for progressive achievements
+    private val _sessionTrainCount = MutableStateFlow(0)
+    private val _sessionFeedCount = MutableStateFlow(0)
+    private val _sessionHuntCount = MutableStateFlow(0)
+    private val _sessionPetCount = MutableStateFlow(0)
+    private val _triedModes = MutableStateFlow(setOf<String>())
 
     // Per-provider API key configs
     private val _providerConfigs = MutableStateFlow(
@@ -332,7 +349,8 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             _hatchNameText.value = ""
             addLog(nameInput, "HATCH", "SUCCESS! ${if (statusShiny) "⭐⭐ SHINY ⭐⭐ " else ""}$rarityTier ${spec.name} companion hatched.")
             addLog(nameInput, "SYSTEM", "Hi Dev, I am $nameInput, initialized and bound to device thread safely.")
-            
+            trackAchievement("first_hatch")
+
             _isGeneratingResponse.value = false
         }
     }
@@ -368,6 +386,9 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
     fun petPet() {
         val pet = activePet.value ?: return
         _happiness.value = (_happiness.value + 5).coerceAtMost(100)
+        val newCount = _sessionPetCount.value + 1
+        _sessionPetCount.value = newCount
+        progressAchievement("pet_10", newCount, 10)
         addLog(pet.name, "INTERACT", "${pet.name} purrs contentedly. Happiness +5%!")
     }
 
@@ -381,6 +402,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             val oldName = pet.name
             val updated = pet.copy(name = newName)
             repository.updatePet(updated)
+            trackAchievement("rename_pet")
             addLog("SYSTEM", "RENAME", "${oldName} has been renamed to $newName.")
         }
     }
@@ -444,6 +466,9 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             )
             val shinyTag = if (shinyRoll) " [SHINY!]" else ""
             _wildEncounterLog.value = "A wild ${spec.name} appeared!\nRarity: $rarity$shinyTag\nUse /catch to attempt capture!"
+            val huntCount = _sessionHuntCount.value + 1
+            _sessionHuntCount.value = huntCount
+            progressAchievement("hunt_5", huntCount, 5)
         }
     }
 
@@ -485,6 +510,9 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
                 val finalXP = xpBonus * shinyMultiplier
                 val finalZX = zxBonus * shinyMultiplier
                 _zxPoints.value += finalZX
+                trackAchievement("first_wild_catch")
+                if (encounter.isShiny) trackAchievement("shiny_catch")
+                checkZxAchievements(_zxPoints.value)
                 // Award XP directly
                 val newXP = pet.xp + finalXP
                 var newLevel = pet.level
@@ -563,6 +591,8 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             val pet = activePet.value
             val pointsAwarded = score * 5 + 10
             _zxPoints.value += pointsAwarded
+            if (score >= 5) trackAchievement("simon_5")
+            checkZxAchievements(_zxPoints.value)
             if (score > _simonHighScore.value) {
                 _simonHighScore.value = score
             }
@@ -649,6 +679,42 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
         )
         val pet = activePet.value
         addLog(pet?.name ?: "PLAYER", "SIMON", "🎯 Your turn! Tap the colors in order.")
+    }
+
+    // ── Achievement System ────────────────────────────────────────────────
+    private fun trackAchievement(id: String) {
+        viewModelScope.launch {
+            repository.unlockAchievement(id)
+            val def = AchievementRegistry.all.find { it.id == id }
+            if (def != null) {
+                addLog("SYSTEM", "ACHIEVEMENT", "🏆 Achievement unlocked: ${def.icon} ${def.title} — ${def.description}")
+            }
+        }
+    }
+
+    private fun progressAchievement(id: String, current: Int, max: Int) {
+        viewModelScope.launch {
+            val existing = repository.getAchievement(id)
+            if (existing != null && existing.unlockedAt > 0L) return@launch
+            repository.progressAchievement(id, current, max)
+            if (current >= max) {
+                val def = AchievementRegistry.all.find { it.id == id }
+                if (def != null) {
+                    addLog("SYSTEM", "ACHIEVEMENT", "🏆 Achievement unlocked: ${def.icon} ${def.title} — ${def.description}")
+                }
+            }
+        }
+    }
+
+    private fun checkLevelAchievements(level: Int) {
+        if (level >= 5) trackAchievement("level_5")
+        if (level >= 10) trackAchievement("level_10")
+        if (level >= 20) trackAchievement("level_20")
+    }
+
+    private fun checkZxAchievements(points: Int) {
+        if (points >= 50) trackAchievement("zx_50")
+        if (points >= 200) progressAchievement("zx_200", points.coerceAtMost(200), 200)
     }
 
     fun fortuneTell(): String {
@@ -761,6 +827,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             addLog(pet.name, "ERROR", "No code provided to review. Paste some source first!")
             return
         }
+        trackAchievement("code_review")
         viewModelScope.launch {
             _isGeneratingResponse.value = true
             when (_selectedProvider.value) {
@@ -903,6 +970,10 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
                 lastUpdated = System.currentTimeMillis()
             )
             repository.updatePet(updated)
+            val newCount = _sessionFeedCount.value + 1
+            _sessionFeedCount.value = newCount
+            trackAchievement("first_feed")
+            progressAchievement("feed_25", newCount, 25)
             addLog(pet.name, "CARE", "Fed nutrition formula to ${pet.name}. Energy: $newEnergy%, Hunger: $newHunger%.")
         }
     }
@@ -974,6 +1045,11 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
                 lastUpdated = System.currentTimeMillis()
             )
             repository.updatePet(updated)
+            val trainCount = _sessionTrainCount.value + 1
+            _sessionTrainCount.value = trainCount
+            trackAchievement("first_train")
+            progressAchievement("train_10", trainCount, 10)
+            checkLevelAchievements(newLevel)
         }
     }
 
@@ -1190,6 +1266,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 	- /catch | /capture                  → Attempt to capture the wild pet
 	- /flee | /run                       → Retreat from wild encounter
 	- /simon | /memory                     → Play Simon Says memory game
+	- /achievements | /badges             → View your unlocked achievements
 - /scan | /sync                      → Start BLE scan
 - /disconnect                        → End BLE connection
 - /clear                             → Clear debug logs
@@ -1225,6 +1302,7 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
                 val points = r.nextInt(15) + 5
                 _zxPoints.value = _zxPoints.value + points
                 _happiness.value = (_happiness.value + 5).coerceAtMost(100)
+                checkZxAchievements(_zxPoints.value)
                 addLog(pet.name, "ARCADE", "🎮 ZX-Game complete! Earned $points ZX Points. Total: ${_zxPoints.value}. Happy +5%!")
                 true
             }
@@ -1262,6 +1340,8 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
                     addLog(pet.name, "MODE", "Unknown mode. Valid: dev, personal, focus, ai")
                 } else {
                     _activeMode.value = canonicalMode
+                    _triedModes.value = _triedModes.value + canonicalMode
+                    if (_triedModes.value.size >= 4) trackAchievement("all_modes")
                     val mod = ModeRegistry.modes[canonicalMode]
                     addLog(pet.name, "MODE", mod?.label ?: canonicalMode)
                     if (mod != null) setTerminalTheme(mod.themeName)
@@ -1313,6 +1393,7 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
             }
             "sleep", "nap" -> {
                 _isSleeping.value = true
+                trackAchievement("sleepyhead")
                 addLog(pet.name, "CARE", "💤 ${pet.name} is now sleeping. Care loop paused. Use /wake to resume.")
                 true
             }
@@ -1336,11 +1417,37 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
             }
             "fortune", "predict" -> {
                 val fortune = fortuneTell()
+                trackAchievement("fortune_teller")
                 addLog(pet.name, "FORTUNE", "🔮 ${fortune}")
                 true
             }
             "simon", "memory", "game" -> {
                 startSimonGame()
+                true
+            }
+            "achievements", "badges", "trophies" -> {
+                viewModelScope.launch {
+                    val all = repository.allAchievements.first()
+                    val defs = AchievementRegistry.all
+                    val unlocked = all.filter { it.unlockedAt > 0L }
+                    if (unlocked.isEmpty()) {
+                        addLog(pet.name, "ACHIEVEMENTS", "No achievements unlocked yet! Start by hatching a pet, feeding, or training.")
+                    } else {
+                        addLog(pet.name, "ACHIEVEMENTS", "🏆 Achievements: ${unlocked.size}/${defs.size}")
+                        for (a in unlocked) {
+                            val def = defs.find { it.id == a.id }
+                            val icon = def?.icon ?: "🏆"
+                            val title = def?.title ?: a.id
+                            addLog(pet.name, "ACHIEVEMENTS", "$icon $title")
+                        }
+                        for (a in all.filter { it.unlockedAt == 0L && it.progress > 0 }) {
+                            val def = defs.find { it.id == a.id }
+                            if (def != null) {
+                                addLog(pet.name, "ACHIEVEMENTS", "⏳ ${def.icon} ${def.title} — ${a.progress}/${a.maxProgress}")
+                            }
+                        }
+                    }
+                }
                 true
             }
             "test-ai", "ai-status", "ai" -> {

@@ -33,6 +33,14 @@ data class LogEntity(
     val message: String
 )
 
+@Entity(tableName = "achievements")
+data class AchievementEntity(
+    @PrimaryKey val id: String, // e.g. "first_hatch", "level_10", "shiny_catch"
+    val unlockedAt: Long = 0L, // 0 = locked
+    val progress: Int = 0,
+    val maxProgress: Int = 1 // 1 for single-shot, N for progressive
+)
+
 @Dao
 interface PetDao {
     @Query("SELECT * FROM pets ORDER BY birthday DESC")
@@ -72,13 +80,32 @@ interface LogDao {
     suspend fun clearLogs()
 }
 
-@Database(entities = [PetEntity::class, LogEntity::class], version = 1, exportSchema = false)
+@Dao
+interface AchievementDao {
+    @Query("SELECT * FROM achievements ORDER BY id ASC")
+    fun getAllAchievements(): Flow<List<AchievementEntity>>
+
+    @Query("SELECT * FROM achievements WHERE id = :id")
+    suspend fun getAchievement(id: String): AchievementEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAchievement(achievement: AchievementEntity)
+
+    @Query("SELECT COUNT(*) FROM achievements WHERE unlockedAt > 0")
+    fun getUnlockedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM achievements")
+    fun getTotalCount(): Flow<Int>
+}
+
+@Database(entities = [PetEntity::class, LogEntity::class, AchievementEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun petDao(): PetDao
     abstract fun logDao(): LogDao
+    abstract fun achievementDao(): AchievementDao
 }
 
-class ZRepository(private val petDao: PetDao, private val logDao: LogDao) {
+class ZRepository(private val petDao: PetDao, private val logDao: LogDao, private val achievementDao: AchievementDao) {
     val allPets: Flow<List<PetEntity>> = petDao.getAllPets()
     val activePet: Flow<PetEntity?> = petDao.getActivePetFlow()
     val recentLogs: Flow<List<LogEntity>> = logDao.getRecentLogs()
@@ -110,5 +137,38 @@ class ZRepository(private val petDao: PetDao, private val logDao: LogDao) {
 
     suspend fun clearLogs() {
         logDao.clearLogs()
+    }
+
+    // ── Achievements ──────────────────────────────────────────────────────
+    val allAchievements: Flow<List<AchievementEntity>> = achievementDao.getAllAchievements()
+    val unlockedCount: Flow<Int> = achievementDao.getUnlockedCount()
+    val totalCount: Flow<Int> = achievementDao.getTotalCount()
+
+    suspend fun getAchievement(id: String): AchievementEntity? = achievementDao.getAchievement(id)
+
+    suspend fun upsertAchievement(achievement: AchievementEntity) {
+        achievementDao.upsertAchievement(achievement)
+    }
+
+    suspend fun unlockAchievement(id: String, progress: Int = 1, maxProgress: Int = 1) {
+        val existing = achievementDao.getAchievement(id)
+        if (existing == null || existing.unlockedAt == 0L) {
+            achievementDao.upsertAchievement(
+                AchievementEntity(id = id, unlockedAt = System.currentTimeMillis(), progress = progress, maxProgress = maxProgress)
+            )
+        }
+    }
+
+    suspend fun progressAchievement(id: String, currentProgress: Int, maxProgress: Int = 1) {
+        val existing = achievementDao.getAchievement(id)
+        if (existing != null && existing.unlockedAt > 0L) return // already unlocked
+        achievementDao.upsertAchievement(
+            AchievementEntity(
+                id = id,
+                unlockedAt = if (currentProgress >= maxProgress) System.currentTimeMillis() else 0L,
+                progress = currentProgress.coerceAtMost(maxProgress),
+                maxProgress = maxProgress
+            )
+        )
     }
 }

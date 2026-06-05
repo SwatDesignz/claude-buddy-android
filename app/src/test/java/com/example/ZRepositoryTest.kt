@@ -29,7 +29,7 @@ class ZRepositoryTest {
     database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
       .build()
-    repository = ZRepository(database.petDao(), database.logDao())
+    repository = ZRepository(database.petDao(), database.logDao(), database.achievementDao())
   }
 
   @After
