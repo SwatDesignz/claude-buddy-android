@@ -47,6 +47,7 @@ import com.example.data.model.SpeciesData
 import com.example.data.model.SpeciesSpec
 import com.example.data.model.lifecycle
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.viewmodel.WildEncounter
 import com.example.ui.viewmodel.ZXDigitalPetView
 import com.example.ui.viewmodel.ZXDigitalPetViewFactory
 import kotlinx.coroutines.delay
@@ -95,8 +96,13 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
     val isBLEConnected by viewModel.isBLEConnected.collectAsStateWithLifecycle()
     val showBLEPairDialog by viewModel.showBLEPairDialog.collectAsStateWithLifecycle()
 
+    // Wild encounter states
+    val wildEncounter by viewModel.wildEncounter.collectAsStateWithLifecycle()
+    val wildEncounterLog by viewModel.wildEncounterLog.collectAsStateWithLifecycle()
+    val wildCaptures by viewModel.wildCaptures.collectAsStateWithLifecycle()
+
     // Screen State tab - UI controlled locally for ultra-fast, robust response times
-    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW
+    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW, WILD
 
     // Map theme names to cathode ray phosphoresces colors
     val themeColor = remember(currentTheme) {
@@ -273,6 +279,18 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                     "REVIEW" -> {
                         CodeReviewView(
                             viewModel = viewModel,
+                            glowStyle = glowStyle,
+                            themeColor = themeColor
+                        )
+                    }
+                    "WILD" -> {
+                        WildEncounterView(
+                            viewModel = viewModel,
+                            activePet = activePet,
+                            wildEncounter = wildEncounter,
+                            encounterLog = wildEncounterLog,
+                            wildCaptures = wildCaptures,
+                            isGenerating = isGenerating,
                             glowStyle = glowStyle,
                             themeColor = themeColor
                         )
@@ -491,6 +509,15 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                         .weight(1f)
                         .testTag("tab_review"),
                     onClick = { activeTab = "REVIEW" }
+                )
+                TerminalTabButton(
+                    label = "F6:WILD",
+                    isActive = activeTab == "WILD",
+                    activeColor = themeColor,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tab_wild"),
+                    onClick = { activeTab = "WILD" }
                 )
             }
         }
@@ -1782,6 +1809,303 @@ fun CodeReviewView(
                 color = Color(0xFFBFCBAD),
                 fontSize = 9.sp
             )
+        }
+    }
+}
+
+// ── Wild Encounter Tab ────────────────────────────────────────────────────────
+@Composable
+fun WildEncounterView(
+    viewModel: ZXDigitalPetView,
+    activePet: PetEntity?,
+    wildEncounter: WildEncounter,
+    encounterLog: String,
+    wildCaptures: Int,
+    isGenerating: Boolean,
+    glowStyle: TextStyle,
+    themeColor: Color
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "=== [ WILD ENCOUNTER SUBSYSTEM ] ===",
+            style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (activePet == null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "⚠️ No active pet to go hunting. Hatch one in F2:HATCHERY first!",
+                color = Color(0xFFFF5F56),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+            return
+        }
+
+        val zxPoints by viewModel.zxPoints.collectAsStateWithLifecycle()
+        Text(
+            text = "Captures this session: $wildCaptures | ZX Points: $zxPoints",
+            color = Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Encounter display area
+        when (val enc = wildEncounter) {
+            is WildEncounter.None -> {
+                // Show idle state with hunt prompt
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .border(1.dp, Color(0xFF49454F), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "🌿",
+                            fontSize = 48.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No wild pets in range.",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = "Use /hunt or press the button below to search.",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color(0xFF938F99)
+                        )
+                    }
+                }
+            }
+            is WildEncounter.Hunting -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(36.dp),
+                            color = themeColor
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "🌿 ${activePet.name} is searching...",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = themeColor
+                        )
+                    }
+                }
+            }
+            is WildEncounter.Found -> {
+                // Wild pet display
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, getRarityColor(enc.rarity).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Shiny sparkle
+                        if (enc.isShiny) {
+                            Text(
+                                text = "⭐⭐ SHINY ⭐⭐",
+                                color = Color(0xFFFFD700),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                        // ASCII art
+                        Text(
+                            text = enc.asciiArt,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp,
+                            color = getRarityColor(enc.rarity),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "${enc.speciesName} [${enc.rarity}]",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = getRarityColor(enc.rarity)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Capture chance: ${(enc.captureDifficulty * 100).toInt()}%",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+            is WildEncounter.Captured -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .border(1.dp, Color(0xFF27C93F), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "✅ CAPTURED!",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF27C93F)
+                    )
+                }
+            }
+            is WildEncounter.Escaped -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .border(1.dp, Color(0xFFFF5F56), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "💨 It got away!",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF5F56)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Encounter log
+        if (encounterLog.isNotBlank()) {
+            Text(
+                text = encounterLog,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                color = Color(0xFFE6E1E5),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF1C1B1F), RoundedCornerShape(4.dp))
+                    .padding(8.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Action buttons row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (wildEncounter is WildEncounter.None || wildEncounter is WildEncounter.Escaped || wildEncounter is WildEncounter.Captured) {
+                Button(
+                    onClick = { viewModel.startWildEncounter() },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .testTag("wild_hunt_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = themeColor,
+                        contentColor = Color(0xFF381E72)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !isGenerating
+                ) {
+                    Text("🌿 HUNT", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (wildEncounter is WildEncounter.Found) {
+                Button(
+                    onClick = { viewModel.attemptCapture() },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .border(1.dp, Color(0xFF27C93F).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .testTag("wild_catch_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF27C93F),
+                        contentColor = Color(0xFF0D0D0D)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !isGenerating
+                ) {
+                    Text("🎯 CATCH", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = { viewModel.fleeWildEncounter() },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .border(1.dp, Color(0xFFFF5F56).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .testTag("wild_flee_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2B2930),
+                        contentColor = Color(0xFFFF5F56)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("👋 FLEE", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Tips section
+        Text(
+            text = ">> HUNTING TIPS",
+            style = glowStyle.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        val wildTips = listOf(
+            "Higher Wisdom and Patience improve capture chances.",
+            "Higher Debugging provides a small capture bonus.",
+            "Rarer pets have lower base capture rates.",
+            "Shiny pets are extremely rare (~0.4%) and harder to catch.",
+            "Successfully caught pets award XP and ZX Points.",
+            "Legendary catches award 50 XP + 100 ZX Points!"
+        )
+        for (tip in wildTips) {
+            Row(modifier = Modifier.padding(vertical = 1.dp)) {
+                Text(
+                    text = "• ",
+                    color = themeColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp
+                )
+                Text(
+                    text = tip,
+                    color = Color(0xFF938F99),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp
+                )
+            }
         }
     }
 }

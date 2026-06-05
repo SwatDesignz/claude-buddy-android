@@ -33,6 +33,21 @@ sealed class AiStatus {
     data class Failed(val message: String) : AiStatus()
 }
 
+/** Represents a wild pet encounter. */
+sealed class WildEncounter {
+    data object None : WildEncounter()
+    data object Hunting : WildEncounter()
+    data class Found(
+        val speciesName: String,
+        val rarity: String,
+        val isShiny: Boolean,
+        val asciiArt: String,
+        val captureDifficulty: Float // 0.0 (impossible) to 1.0 (guaranteed) base
+    ) : WildEncounter()
+    data object Captured : WildEncounter()
+    data object Escaped : WildEncounter()
+}
+
 /** Maps pet level to a lifecycle stage string. */
 private fun Int.lifecycleStage(): String = when {
     this in 1..9 -> "Baby"
@@ -118,6 +133,17 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
         AiProviderType.entries.associateWith { AiProviderConfig(it) }
     )
     val providerConfigs: StateFlow<Map<AiProviderType, AiProviderConfig>> = _providerConfigs.asStateFlow()
+
+    // Wild encounter state
+    private val _wildEncounter = MutableStateFlow<WildEncounter>(WildEncounter.None)
+    val wildEncounter: StateFlow<WildEncounter> = _wildEncounter.asStateFlow()
+
+    private val _wildEncounterLog = MutableStateFlow("")
+    val wildEncounterLog: StateFlow<String> = _wildEncounterLog.asStateFlow()
+
+    // How many wild pets captured this session
+    private val _wildCaptures = MutableStateFlow(0)
+    val wildCaptures: StateFlow<Int> = _wildCaptures.asStateFlow()
 
     init {
         // Animation ticker to alternate pet ASCII frames roughly every 1.5 seconds for idle 60fps vibes
@@ -328,6 +354,151 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             val updated = pet.copy(name = newName)
             repository.updatePet(updated)
             addLog("SYSTEM", "RENAME", "${oldName} has been renamed to $newName.")
+        }
+    }
+
+    // ── Wild Encounters ──────────────────────────────────────────────────
+    fun startWildEncounter() {
+        val pet = activePet.value
+        if (pet == null) {
+            addLog("SYSTEM", "ERROR", "No active pet to go hunting with! Hatch one first.")
+            return
+        }
+        if (_wildEncounter.value is WildEncounter.Hunting || _wildEncounter.value is WildEncounter.Found) {
+            addLog(pet.name, "WILD", "Already tracking a wild encounter! Deal with it first.")
+            return
+        }
+        viewModelScope.launch {
+            _wildEncounter.value = WildEncounter.Hunting
+            _wildEncounterLog.value = ""
+            addLog(pet.name, "WILD", "🌿 ${pet.name} is sniffing around for wild pets...")
+            delay(1500)
+
+            // Pick a random species
+            val speciesList = SpeciesData.list
+            val spec = speciesList[r.nextInt(speciesList.size)]
+
+            // Roll rarity with wild-encounter odds (more weighted towards common)
+            val roll = r.nextInt(100) + 1
+            val shinyRoll = r.nextInt(256) == 42 // ~0.4% base shiny in wild
+            val rarity = when {
+                roll >= 99 -> "Legendary"
+                roll >= 93 -> "Epic"
+                roll >= 75 -> "Rare"
+                roll >= 45 -> "Uncommon"
+                else -> "Common"
+            }
+
+            // Capture difficulty based on rarity
+            val difficulty = when (rarity) {
+                "Legendary" -> 0.15f
+                "Epic" -> 0.30f
+                "Rare" -> 0.50f
+                "Uncommon" -> 0.70f
+                else -> 0.90f
+            }
+
+            // Boost difficulty if shiny
+            val finalDifficulty = if (shinyRoll) difficulty * 0.6f else difficulty
+
+            // Get species art (use Baby frame1 for wild display)
+            val art = spec.frame1.ifEmpty { spec.name.uppercase() }
+
+            _wildEncounter.value = WildEncounter.Found(
+                speciesName = spec.name,
+                rarity = rarity,
+                isShiny = shinyRoll,
+                asciiArt = art,
+                captureDifficulty = finalDifficulty.coerceIn(0.05f, 0.98f)
+            )
+            addLog(pet.name, "WILD",
+                "🔥 Wild ${spec.name} appeared! Rarity: ${rarity}${if (shinyRoll) " ⭐⭐ SHINY ⭐⭐" else ""}"
+            )
+            val shinyTag = if (shinyRoll) " [SHINY!]" else ""
+            _wildEncounterLog.value = "A wild ${spec.name} appeared!\nRarity: $rarity$shinyTag\nUse /catch to attempt capture!"
+        }
+    }
+
+    fun attemptCapture() {
+        val pet = activePet.value ?: return
+        val encounter = _wildEncounter.value
+        if (encounter !is WildEncounter.Found) {
+            addLog(pet.name, "WILD", "Nothing to catch. Use /hunt first!")
+            return
+        }
+        viewModelScope.launch {
+            addLog(pet.name, "WILD", "🎯 ${pet.name} attempts to capture the wild ${encounter.speciesName}...")
+            _wildEncounterLog.value = "Attempting capture..."
+            delay(1200)
+
+            // Capture formula: base difficulty adjusted by pet stats
+            val statBonus = (pet.wisdom * 0.002f + pet.debugging * 0.0015f + pet.patience * 0.001f)
+            val captureChance = (encounter.captureDifficulty + statBonus).coerceIn(0.05f, 0.99f)
+            val roll = r.nextFloat()
+
+            if (roll <= captureChance) {
+                _wildCaptures.value += 1
+                _wildEncounter.value = WildEncounter.Captured
+                val xpBonus = when (encounter.rarity) {
+                    "Legendary" -> 50
+                    "Epic" -> 35
+                    "Rare" -> 25
+                    "Uncommon" -> 15
+                    else -> 10
+                }
+                val zxBonus = when (encounter.rarity) {
+                    "Legendary" -> 100
+                    "Epic" -> 60
+                    "Rare" -> 40
+                    "Uncommon" -> 20
+                    else -> 10
+                }
+                val shinyMultiplier = if (encounter.isShiny) 3 else 1
+                val finalXP = xpBonus * shinyMultiplier
+                val finalZX = zxBonus * shinyMultiplier
+                _zxPoints.value += finalZX
+                // Award XP directly
+                val newXP = pet.xp + finalXP
+                var newLevel = pet.level
+                var xpCarry = newXP
+                var levelUps = 0
+                while (xpCarry >= 100) {
+                    xpCarry -= 100
+                    newLevel += 1
+                    levelUps++
+                }
+                val updated = pet.copy(
+                    level = newLevel,
+                    xp = xpCarry,
+                    lastUpdated = System.currentTimeMillis()
+                )
+                repository.updatePet(updated)
+
+                val shinyTag = if (encounter.isShiny) "⭐⭐ SHINY ⭐⭐ " else ""
+                addLog(pet.name, "WILD",
+                    "✅ ${shinyTag}Captured wild ${encounter.speciesName}! +${finalXP}XP +${finalZX}ZX!"
+                )
+                if (levelUps > 0) {
+                    addLog(pet.name, "WILD", "⭐⭐ Level up ×$levelUps! ${pet.name} is now level $newLevel! ⭐⭐")
+                }
+                _wildEncounterLog.value = "✅ Captured! +${finalXP}XP +${finalZX}ZX Points"
+            } else {
+                _wildEncounter.value = WildEncounter.Escaped
+                addLog(pet.name, "WILD",
+                    "💨 The wild ${encounter.speciesName} escaped! (Rolled ${(roll*100).toInt()}% vs ${(captureChance*100).toInt()}% chance)"
+                )
+                _wildEncounterLog.value = "💨 The wild ${encounter.speciesName} escaped!\nTry a better approach next time."
+            }
+        }
+    }
+
+    fun fleeWildEncounter() {
+        val encounter = _wildEncounter.value
+        if (encounter is WildEncounter.Found || encounter is WildEncounter.Hunting) {
+            _wildEncounter.value = WildEncounter.None
+            _wildEncounterLog.value = ""
+            val petName = activePet.value?.name ?: "SYSTEM"
+            addLog(petName, "WILD", "👋 Retreating from the wild encounter. Better luck next time.")
         }
     }
 
@@ -866,6 +1037,9 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 - /provider-key <provider> <key>     → Set API key for a provider
 - /test-ai | /ai-status              → Test current provider connectivity
 - /review <code>                     → Submit code for review
+	- /hunt | /wild                      → Search for a wild pet encounter
+	- /catch | /capture                  → Attempt to capture the wild pet
+	- /flee | /run                       → Retreat from wild encounter
 - /scan | /sync                      → Start BLE scan
 - /disconnect                        → End BLE connection
 - /clear                             → Clear debug logs
@@ -911,6 +1085,18 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
             "clean", "hygiene" -> {
                 _hygiene.value = 100
                 addLog(pet.name, "HYGIENE", "Cleaned ${pet.name}! Hygiene restored to 100%.")
+                true
+            }
+            "hunt", "wild" -> {
+                startWildEncounter()
+                true
+            }
+            "catch", "capture" -> {
+                attemptCapture()
+                true
+            }
+            "flee", "run" -> {
+                fleeWildEncounter()
                 true
             }
             "mode" -> {
