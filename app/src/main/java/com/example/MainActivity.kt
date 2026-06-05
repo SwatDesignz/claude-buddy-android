@@ -45,6 +45,7 @@ import com.example.data.db.PetEntity
 import com.example.data.db.ZRepository
 import com.example.data.model.SpeciesData
 import com.example.data.model.SpeciesSpec
+import com.example.data.model.lifecycle
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ZXDigitalPetView
 import com.example.ui.viewmodel.ZXDigitalPetViewFactory
@@ -63,7 +64,7 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             AppDatabase::class.java,
             "z_xbuddy_database"
-        ).fallbackToDestructiveMigration().build()
+        ).fallbackToDestructiveMigration(false).build()
 
         val repository = ZRepository(database.petDao(), database.logDao())
         val viewModelFactory = ZXDigitalPetViewFactory(repository)
@@ -95,7 +96,7 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
     val showBLEPairDialog by viewModel.showBLEPairDialog.collectAsStateWithLifecycle()
 
     // Screen State tab - UI controlled locally for ultra-fast, robust response times
-    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES
+    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW
 
     // Map theme names to cathode ray phosphoresces colors
     val themeColor = remember(currentTheme) {
@@ -265,6 +266,13 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                             viewModel = viewModel,
                             currentTheme = currentTheme,
                             enableScanlines = enableScanlines,
+                            glowStyle = glowStyle,
+                            themeColor = themeColor
+                        )
+                    }
+                    "REVIEW" -> {
+                        CodeReviewView(
+                            viewModel = viewModel,
                             glowStyle = glowStyle,
                             themeColor = themeColor
                         )
@@ -475,6 +483,15 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                         .testTag("tab_themes"),
                     onClick = { activeTab = "THEMES" }
                 )
+                TerminalTabButton(
+                    label = "F5:REVIEW",
+                    isActive = activeTab == "REVIEW",
+                    activeColor = themeColor,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tab_review"),
+                    onClick = { activeTab = "REVIEW" }
+                )
             }
         }
     }
@@ -651,7 +668,14 @@ fun PetConsoleView(
         }
     } else {
         val spec = remember(activePet.species) { SpeciesData.getByName(activePet.species) }
-        val petFrame = if (currentViewFrame == 1) spec.frame1 else spec.frame2
+        val (frameA, frameB) = remember(activePet.level) {
+            when (activePet.lifecycle) {
+                "Teen" -> Pair(spec.frame3, spec.frame4)
+                "Adult" -> Pair(spec.frame5, spec.frame6)
+                else -> Pair(spec.frame1, spec.frame2)
+            }
+        }
+        val petFrame = if (currentViewFrame == 1) frameA else frameB
 
         // Support Adaptive display - side-by-side if we have tablets / wide layouts
         if (isWideScreen()) {
@@ -1644,6 +1668,124 @@ fun TerminalThemesView(
     }
 }
 
+@Composable
+fun CodeReviewView(
+    viewModel: ZXDigitalPetView,
+    glowStyle: TextStyle,
+    themeColor: Color
+) {
+    val activePet by viewModel.activePet.collectAsStateWithLifecycle()
+    val codeInput by viewModel.codeReviewInput.collectAsStateWithLifecycle()
+    val isGenerating by viewModel.isGeneratingResponse.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "=== [ CODE REVIEW SUBSYSTEM ] ===",
+            style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Paste code below for ${activePet?.name ?: "your buddy"}'s review.",
+            color = Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp
+        )
+        if (activePet == null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "⚠️ No active pet to review code. Hatch one in F2:HATCHERY first!",
+                color = Color(0xFFFF5F56),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Code input area — multi-line terminal style
+        OutlinedTextField(
+            value = codeInput,
+            onValueChange = { viewModel.updateCodeReviewInput(it) },
+            placeholder = {
+                Text(
+                    text = "Paste your code here for review...",
+                    color = Color(0xFF938F99),
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .testTag("code_review_input"),
+            shape = RoundedCornerShape(8.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color(0xFF1C1B1F),
+                unfocusedContainerColor = Color(0xFF1C1B1F),
+                focusedBorderColor = themeColor,
+                unfocusedBorderColor = Color(0xFF49454F),
+                focusedTextColor = Color(0xFFE6E1E5),
+                unfocusedTextColor = Color(0xFFE6E1E5)
+            ),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+            enabled = activePet != null && !isGenerating
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = { viewModel.reviewCode() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                .testTag("code_review_button"),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = themeColor,
+                contentColor = Color(0xFF381E72)
+            ),
+            shape = RoundedCornerShape(8.dp),
+            enabled = activePet != null && !isGenerating && codeInput.isNotBlank()
+        ) {
+            if (isGenerating) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color(0xFF381E72))
+            } else {
+                Text("ANALYZE SOURCE", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = ">> REVIEW TIPS",
+            style = glowStyle.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        val tips = buildList {
+            add("The review tone depends on your pet's personality stats.")
+            if (activePet != null) {
+                if (activePet!!.snark > 65) add("High snark → expect roasting of variable names and formatting.")
+                if (activePet!!.wisdom > 70) add("High wisdom → architectural insight and philosophy.")
+                if (activePet!!.chaos > 75) add("High chaos → unhinged suggestions and risky optimizations.")
+                if (activePet!!.debugging > 75) add("High debugging → detailed bug-hunting analysis.")
+            }
+            add("Set a Gemini API key for AI-powered reviews instead of sandbox mode.")
+        }
+        for (tip in tips) {
+            Text(
+                text = "• $tip",
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFFBFCBAD),
+                fontSize = 9.sp
+            )
+        }
+    }
+}
+
 // Helper stat readouts
 @Composable
 fun StatRow(label: String, valStr: String) {
@@ -1655,17 +1797,6 @@ fun StatRow(label: String, valStr: String) {
     ) {
         Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.Gray)
         Text(text = valStr, fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.White)
-    }
-}
-
-@Composable
-fun SpecMiniRow(statName: String, value: Int, themeColor: Color) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = statName, fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = Color.Gray)
-        Text(text = "$value/100", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = themeColor)
     }
 }
 

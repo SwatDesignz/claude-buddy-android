@@ -12,10 +12,10 @@ android {
 
   defaultConfig {
     applicationId = "com.zxbuddy.app"
-    minSdk = 24
+    minSdk = 31
     targetSdk = 36
     versionCode = 1
-    versionName = "1.0"
+    versionName = "0.16.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -27,6 +27,7 @@ android {
       storePassword = System.getenv("STORE_PASSWORD")
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
+      enableV2Signing = true
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -38,8 +39,9 @@ android {
 
   buildTypes {
     release {
+      isShrinkResources = true
+      isMinifyEnabled = true
       isCrunchPngs = false
-      isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -47,15 +49,27 @@ android {
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
+
   buildFeatures {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+    }
+  }
+
+  lint {
+    abortOnError = false
+    checkReleaseBuilds = true
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files

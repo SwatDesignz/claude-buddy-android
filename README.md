@@ -1,7 +1,7 @@
-# ZXBuddy – Retro Terminal Pet Companion
+# Claude Buddy for Android – ZXBuddy™ Retro Terminal Pet Companion
 
 ## Overview
-ZXBuddy is a lightweight Android companion app that brings a classic Tamagotchi‑style virtual pet to the modern Android terminal experience. The app blends retro ASCII art, ASCII‑styled personality traits, and developer‑focused interactions with a modern Android UI. It runs **offline‑first**, requires no external servers for core features, and is designed to be friendly to developers who love a terminal aesthetic.
+**Claude Buddy for Android** is a lightweight companion app (codenamed **ZXBuddy**) that brings a classic Tamagotchi‑style virtual pet to the modern Android terminal experience. The app blends retro ASCII art, ASCII‑styled personality traits, and developer‑focused interactions with a modern Android UI. It runs **offline‑first**, requires no external servers for core features, and is designed to be friendly to developers who love a terminal aesthetic.
 
 ## ALL FEATURES ARE EXPERIMENTAL AT THIS TIME
 ## Core Features

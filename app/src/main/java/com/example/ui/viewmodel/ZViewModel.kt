@@ -7,17 +7,38 @@ import com.example.BuildConfig
 import com.example.data.api.GenerateContentRequest
 import com.example.data.api.Content
 import com.example.data.api.Part
+import com.example.data.api.OpenRouterRetrofitClient
+import com.example.data.api.OpenRouterRequest
+import com.example.data.api.OpenRouterMessage
 import com.example.data.api.RetrofitClient
 import com.example.data.db.LogEntity
 import com.example.data.db.PetEntity
 import com.example.data.db.ZRepository
 import com.example.data.model.SpeciesData
+import com.example.data.model.AiProviderType
+import com.example.data.model.AiProviderConfig
+import com.example.data.model.ModeRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Random
+
+/** Result of an LLM connectivity test. */
+sealed class AiStatus {
+    data object Idle : AiStatus()
+    data object Testing : AiStatus()
+    data class Connected(val latencyMs: Long) : AiStatus()
+    data class Failed(val message: String) : AiStatus()
+}
+
+/** Maps pet level to a lifecycle stage string. */
+private fun Int.lifecycleStage(): String = when {
+    this in 1..9 -> "Baby"
+    this in 10..19 -> "Teen"
+    else -> "Adult"
+}
 
 class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 
@@ -72,6 +93,32 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
     private val _zxPoints = MutableStateFlow(0)
     val zxPoints: StateFlow<Int> = _zxPoints.asStateFlow()
 
+    // Sleep mode — pauses care loop decay
+    private val _isSleeping = MutableStateFlow(false)
+    val isSleeping: StateFlow<Boolean> = _isSleeping.asStateFlow()
+
+    // AI connection test status
+    private val _aiConnectionStatus = MutableStateFlow<AiStatus>(AiStatus.Idle)
+    val aiConnectionStatus: StateFlow<AiStatus> = _aiConnectionStatus.asStateFlow()
+
+    // Code review input text
+    private val _codeReviewInput = MutableStateFlow("")
+    val codeReviewInput: StateFlow<String> = _codeReviewInput.asStateFlow()
+
+    // Active gameplay mode
+    private val _activeMode = MutableStateFlow("dev")
+    val activeMode: StateFlow<String> = _activeMode.asStateFlow()
+
+    // Selected AI provider
+    private val _selectedProvider = MutableStateFlow(AiProviderType.Sandbox)
+    val selectedProvider: StateFlow<AiProviderType> = _selectedProvider.asStateFlow()
+
+    // Per-provider API key configs
+    private val _providerConfigs = MutableStateFlow(
+        AiProviderType.entries.associateWith { AiProviderConfig(it) }
+    )
+    val providerConfigs: StateFlow<Map<AiProviderType, AiProviderConfig>> = _providerConfigs.asStateFlow()
+
     init {
         // Animation ticker to alternate pet ASCII frames roughly every 1.5 seconds for idle 60fps vibes
         viewModelScope.launch {
@@ -85,20 +132,36 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
         viewModelScope.launch {
             while (true) {
                 delay(15000) // every 15 seconds
+                if (_isSleeping.value) continue // skip decay while sleeping
                 val pet = activePet.value ?: continue
-                // Hunger increases (gets worse) over time
-                val newHunger = (pet.hunger + 3).coerceAtMost(100)
-                // Happiness decays slowly
-                val newHappiness = (_happiness.value - 2).coerceAtLeast(0)
-                // Hygiene decays
+                // Apply mode-specific decay rates
+                val mod = ModeRegistry.modes[_activeMode.value]
+                val hungerDecay = mod?.hungerDecayRate ?: 3
+                val happinessDecay = mod?.happinessDecayRate ?: 2
+                val energyDecay = mod?.energyDecayRate ?: 0
+                val chaosDecay = mod?.chaosDecayRate ?: 0
+                val patienceGain = mod?.patienceGainRate ?: 0
+
+                val newHunger = (pet.hunger + hungerDecay).coerceIn(0, 100)
+                val newHappiness = (_happiness.value - happinessDecay).coerceAtLeast(0)
+                val newEnergy = (pet.energy + energyDecay).coerceIn(0, 100)
                 val newHygiene = (_hygiene.value - 1).coerceAtLeast(0)
+                val newChaos = (pet.chaos + chaosDecay).coerceIn(0, 100)
+                val newPatience = (pet.patience + patienceGain).coerceIn(0, 100)
                 _happiness.value = newHappiness
                 _hygiene.value = newHygiene
-                repository.updatePet(pet.copy(hunger = newHunger, lastUpdated = System.currentTimeMillis()))
+                repository.updatePet(pet.copy(
+                    hunger = newHunger,
+                    energy = newEnergy,
+                    chaos = newChaos,
+                    patience = newPatience,
+                    lastUpdated = System.currentTimeMillis()
+                ))
                 // Warn if stats are critically low
                 if (newHunger > 80) addLog(pet.name, "CARE", "⚠️ ${pet.name} is getting hungry! Feed them soon.")
                 if (newHappiness < 20) addLog(pet.name, "CARE", "⚠️ ${pet.name} is feeling down. Play with them!")
                 if (newHygiene < 20) addLog(pet.name, "CARE", "⚠️ ${pet.name} needs cleaning!")
+                if (newEnergy < 20) addLog(pet.name, "CARE", "⚠️ ${pet.name} is running low on energy!")
             }
         }
 
@@ -242,6 +305,272 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
         }
     }
 
+    // ── New Interactions ────────────────────────────────────────────────────
+
+    fun updateCodeReviewInput(txt: String) {
+        _codeReviewInput.value = txt
+    }
+
+    fun petPet() {
+        val pet = activePet.value ?: return
+        _happiness.value = (_happiness.value + 5).coerceAtMost(100)
+        addLog(pet.name, "INTERACT", "${pet.name} purrs contentedly. Happiness +5%!")
+    }
+
+    fun renamePet(newName: String) {
+        val pet = activePet.value ?: return
+        if (newName.isBlank()) {
+            addLog("SYSTEM", "ERROR", "New name cannot be empty.")
+            return
+        }
+        viewModelScope.launch {
+            val oldName = pet.name
+            val updated = pet.copy(name = newName)
+            repository.updatePet(updated)
+            addLog("SYSTEM", "RENAME", "${oldName} has been renamed to $newName.")
+        }
+    }
+
+    fun fortuneTell(): String {
+        val pet = activePet.value ?: return "No active pet to read fortune from."
+        val s = pet.snark
+        val w = pet.wisdom
+        val c = pet.chaos
+        val pm = pet.patience
+        val d = pet.debugging
+        return when {
+            w > 80 -> "I see a clean PR in your future — approved without a single change request."
+            c > 80 -> "The stack trace is cloudy. I foresee... a null pointer. Tonight."
+            s > 75 -> "Your code will compile on the first try. Ha. Just kidding. Fix your imports."
+            d > 80 -> "A tricky race condition lurks in your async code. You will find it before deploy."
+            pm < 30 -> "The spirits say... take a break. Your patience is frayed and your bugs are multiplying."
+            else -> "The stars align for a productive sprint. Stay hydrated and commit early."
+        }
+    }
+
+    fun testAIConnection() {
+        viewModelScope.launch {
+            _aiConnectionStatus.value = AiStatus.Testing
+            val provider = _selectedProvider.value
+            addLog("SYSTEM", "AI_TEST", "Testing ${provider.displayName} connectivity...")
+
+            when (provider) {
+                AiProviderType.Sandbox -> {
+                    delay(500)
+                    _aiConnectionStatus.value = AiStatus.Connected(0)
+                    addLog("SYSTEM", "AI_TEST", "✅ Sandbox mode — always connected (local responses only).")
+                }
+                AiProviderType.Gemini -> testGeminiConnection()
+                AiProviderType.OpenRouter -> testOpenRouterConnection()
+            }
+        }
+    }
+
+    private suspend fun testGeminiConnection() {
+        val apiKey = resolveGeminiKey()
+        if (apiKey == null) {
+            _aiConnectionStatus.value = AiStatus.Failed("No valid Gemini API key configured.")
+            addLog("SYSTEM", "AI_TEST", "❌ Gemini test FAILED — no API key set. Use /provider-key gemini <key> or add GEMINI_API_KEY to .env")
+            return
+        }
+        addLog("SYSTEM", "AI_TEST", "Pinging Gemini API endpoint...")
+        val start = System.currentTimeMillis()
+        try {
+            withContext(Dispatchers.IO) {
+                val request = GenerateContentRequest(
+                    contents = listOf(Content(parts = listOf(Part(text = "Respond with exactly: OK")))),
+                    systemInstruction = null
+                )
+                val response = RetrofitClient.service.generateContent(apiKey, request)
+                val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: ""
+                val latency = System.currentTimeMillis() - start
+                if (text.contains("OK", ignoreCase = true)) {
+                    _aiConnectionStatus.value = AiStatus.Connected(latency)
+                    addLog("SYSTEM", "AI_TEST", "✅ Gemini OK — ${latency}ms latency. Response: \"$text\"")
+                } else {
+                    _aiConnectionStatus.value = AiStatus.Failed("Unexpected response: $text")
+                    addLog("SYSTEM", "AI_TEST", "⚠️ Gemini responded but unexpected: $text")
+                }
+            }
+        } catch (e: Exception) {
+            val elapsed = System.currentTimeMillis() - start
+            _aiConnectionStatus.value = AiStatus.Failed("${e.localizedMessage} (${elapsed}ms)")
+            addLog("SYSTEM", "AI_TEST", "❌ Gemini FAILED after ${elapsed}ms: ${e.localizedMessage}")
+        }
+    }
+
+    private suspend fun testOpenRouterConnection() {
+        val apiKey = resolveOpenRouterKey()
+        if (apiKey == null) {
+            _aiConnectionStatus.value = AiStatus.Failed("No valid OpenRouter API key configured.")
+            addLog("SYSTEM", "AI_TEST", "❌ OpenRouter test FAILED — no API key set. Use /provider-key openrouter <key>")
+            return
+        }
+        addLog("SYSTEM", "AI_TEST", "Pinging OpenRouter API endpoint...")
+        val start = System.currentTimeMillis()
+        try {
+            withContext(Dispatchers.IO) {
+                val request = OpenRouterRequest(
+                    messages = listOf(OpenRouterMessage("user", "Respond with exactly: OK"))
+                )
+                val response = OpenRouterRetrofitClient.service.chatCompletion(
+                    authorization = "Bearer $apiKey",
+                    request = request
+                )
+                val text = response.choices?.firstOrNull()?.message?.content ?: ""
+                val latency = System.currentTimeMillis() - start
+                if (text.contains("OK", ignoreCase = true)) {
+                    _aiConnectionStatus.value = AiStatus.Connected(latency)
+                    addLog("SYSTEM", "AI_TEST", "✅ OpenRouter OK — ${latency}ms latency. Response: \"$text\"")
+                } else {
+                    _aiConnectionStatus.value = AiStatus.Failed("Unexpected response: $text")
+                    addLog("SYSTEM", "AI_TEST", "⚠️ OpenRouter responded but unexpected: $text")
+                }
+            }
+        } catch (e: Exception) {
+            val elapsed = System.currentTimeMillis() - start
+            _aiConnectionStatus.value = AiStatus.Failed("${e.localizedMessage} (${elapsed}ms)")
+            addLog("SYSTEM", "AI_TEST", "❌ OpenRouter FAILED after ${elapsed}ms: ${e.localizedMessage}")
+        }
+    }
+
+    fun reviewCode() {
+        val pet = activePet.value ?: return
+        val code = _codeReviewInput.value.trim()
+        if (code.isEmpty()) {
+            addLog(pet.name, "ERROR", "No code provided to review. Paste some source first!")
+            return
+        }
+        viewModelScope.launch {
+            _isGeneratingResponse.value = true
+            when (_selectedProvider.value) {
+                AiProviderType.Sandbox -> {
+                    delay(800)
+                    val review = getCodeReview(pet, code)
+                    addLog(pet.name, "REVIEW", review)
+                    _isGeneratingResponse.value = false
+                }
+                AiProviderType.Gemini -> {
+                    val apiKey = resolveGeminiKey()
+                    if (apiKey == null) {
+                        sandboxCodeReview(pet, code)
+                    } else {
+                        geminiCodeReview(pet, code, apiKey)
+                    }
+                }
+                AiProviderType.OpenRouter -> {
+                    val apiKey = resolveOpenRouterKey()
+                    if (apiKey == null) {
+                        sandboxCodeReview(pet, code)
+                    } else {
+                        openRouterCodeReview(pet, code, apiKey)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun sandboxCodeReview(pet: PetEntity, code: String) {
+        delay(800)
+        val review = getCodeReview(pet, code)
+        addLog(pet.name, "REVIEW", review)
+        _isGeneratingResponse.value = false
+    }
+
+    private suspend fun geminiCodeReview(pet: PetEntity, code: String, apiKey: String) {
+        val systemInstruction = """
+            You are ${pet.name}, a digital ASCII companion pet acting as a code reviewer.
+            You are a ${pet.species} (Rarity: ${pet.rarity}).
+            Personality stats (out of 100):
+            - Snark/Sarcasm: ${pet.snark}
+            - Wisdom: ${pet.wisdom}
+            - Chaos: ${pet.chaos}
+            - Patience: ${pet.patience}
+            - Debugging: ${pet.debugging}
+            Review the code snippet the user provides. Keep it to 2-4 sentences.
+            Match your tone to your stats: high snark = roast, high wisdom = thoughtful advice, high chaos = unhinged suggestions.
+        """.trimIndent()
+        withContext(Dispatchers.IO) {
+            val request = GenerateContentRequest(
+                contents = listOf(Content(parts = listOf(Part(text = "Review this code:\n$code")))),
+                systemInstruction = Content(parts = listOf(Part(text = systemInstruction)))
+            )
+            try {
+                val response = RetrofitClient.service.generateContent(apiKey, request)
+                val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                    ?: "Code review buffer overflow. No opinion formed."
+                withContext(Dispatchers.Main) { addLog(pet.name, "REVIEW", text) }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) { sandboxCodeReview(pet, code) }
+            } finally {
+                withContext(Dispatchers.Main) { _isGeneratingResponse.value = false }
+            }
+        }
+    }
+
+    private suspend fun openRouterCodeReview(pet: PetEntity, code: String, apiKey: String) {
+        val systemPrompt = """
+            You are ${pet.name}, a digital ASCII companion pet acting as a code reviewer.
+            Personality stats (out of 100): Snark ${pet.snark}, Wisdom ${pet.wisdom}, Chaos ${pet.chaos}.
+            Match your tone to your stats. Keep review to 2-4 sentences.
+        """.trimIndent()
+        withContext(Dispatchers.IO) {
+            val request = OpenRouterRequest(
+                messages = listOf(
+                    OpenRouterMessage("system", systemPrompt),
+                    OpenRouterMessage("user", "Review this code:\n$code")
+                )
+            )
+            try {
+                val response = OpenRouterRetrofitClient.service.chatCompletion(
+                    authorization = "Bearer $apiKey",
+                    request = request
+                )
+                val text = response.choices?.firstOrNull()?.message?.content
+                    ?: response.error?.message?.let { "API error: $it" }
+                    ?: "Code review buffer overflow. No opinion formed."
+                withContext(Dispatchers.Main) { addLog(pet.name, "REVIEW", text) }
+            } catch (_: Exception) {
+                withContext(Dispatchers.Main) { sandboxCodeReview(pet, code) }
+            } finally {
+                withContext(Dispatchers.Main) { _isGeneratingResponse.value = false }
+            }
+        }
+    }
+
+    private fun getCodeReview(pet: PetEntity, code: String): String {
+        val s = pet.snark
+        val w = pet.wisdom
+        val c = pet.chaos
+        val p = pet.patience
+        val d = pet.debugging
+        val lines = code.lines().size
+        val hasTodo = code.contains("TODO", ignoreCase = true)
+        val hasFIXME = code.contains("FIXME", ignoreCase = true)
+        val deepNesting = code.contains("  ")
+        val longLines = code.lines().any { it.length > 80 }
+
+        val observations = buildList {
+            if (hasTodo) add("spotted a TODO — classic 'I'll fix it later' energy")
+            if (hasFIXME) add("FIXME detected. Future you is going to be very confused")
+            if (longLines) add("some lines exceed 80 chars. Do you hate horizontal readability?")
+            if (deepNesting) add("the indentation depth suggests you love nested callbacks more than clean abstractions")
+            if (lines == 1) add("one-liner? Bold. Or lazy. Probably lazy.")
+            if (lines > 50) add("$lines lines is a lot for a single review. Consider smaller functions.")
+        }
+        val observation = if (observations.isEmpty()) "The code looks structurally sound at a glance." else observations.joinToString("; ")
+
+        return when {
+            s > 70 && c > 70 -> "Oh look, more code. $observation. Honestly, I'd rewrite it in Rust. At midnight. On a production server."
+            s > 70 -> "Alright, let me put on my reviewer hat. $observation. Did you even run the linter before pasting this?"
+            w > 75 -> "I see what you're trying to do. $observation. Consider whether the abstraction level matches the problem domain. Deep thoughts."
+            c > 80 -> "WOAH okay $observation. Have you tried adding more nested ternaries? More chaos = more fun!"
+            p < 30 -> "Ugh fine let me look. $observation. Can we hurry this up my attention span is compiling."
+            d > 80 -> "Analyzing... $observation. I'd also suggest adding null safety checks and maybe an enum or two."
+            else -> "Hmm, let me review. $observation. Solid effort! Ship it and we'll fix it in prod."
+        }
+    }
+
     // Action Interactions
     fun feedPet() {
         val pet = activePet.value ?: return
@@ -290,13 +619,14 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             
             // XP logic
             val baseXP = r.nextInt(20) + 20
-            val multiplier = when (pet.rarity) {
+            val rarityMultiplier = when (pet.rarity) {
                 "Legendary" -> 1.5f
                 "Epic" -> 1.3f
                 "Rare" -> 1.15f
                 else -> 1.0f
             }
-            val cleanXP = (baseXP * multiplier).toInt()
+            val modeMultiplier = ModeRegistry.modes[_activeMode.value]?.xpMultiplier ?: 1.0f
+            val cleanXP = (baseXP * rarityMultiplier * modeMultiplier).toInt()
             var newXP = pet.xp + cleanXP
             var newLevel = pet.level
 
@@ -306,6 +636,11 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             if (newXP >= 100) {
                 newXP -= 100
                 newLevel += 1
+                val oldLifecycle = pet.level.lifecycleStage()
+                val newLifecycle = newLevel.lifecycleStage()
+                if (oldLifecycle != newLifecycle) {
+                    addLog(pet.name, "EVOLVE", "✦✦ EVOLUTION! ${pet.name} evolved into ${newLifecycle} stage! ✦✦")
+                }
                 addLog(pet.name, "SYSTEM", "⭐⭐ LEVEL UP! ${pet.name} leveled up to $newLevel! Advanced specs boosted! ⭐⭐")
             } else {
                 addLog(pet.name, "ZIG_ENGINE", "Successfully patched logic branches! +$cleanXP XP ($newXP/100 to level up).")
@@ -357,7 +692,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
         addLog("SYSTEM", "BLE_SYNC", "Connection rejected by client host user.")
     }
 
-    // Chat with pet inside Terminal via Gemini
+    // Chat with pet inside Terminal via the selected AI provider
     fun sendChatMessage() {
         val input = _currentInputText.value.trim()
         if (input.isEmpty()) return
@@ -374,64 +709,132 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 
         viewModelScope.launch {
             _isGeneratingResponse.value = true
-            addLog(pet.name, "AI_PENDING", "Constructing semantic neural route...")
+            addLog(pet.name, "AI_PENDING", "Constructing semantic neural route via ${_selectedProvider.value.displayName}...")
             delay(500)
 
-            val apiKey = BuildConfig.GEMINI_API_KEY
-            if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-                // Return descriptive sandbox mocking based on stats! This is extremely helpful and neat
-                delay(1200)
-                val mockText = getSandboxResponse(pet, input)
-                addLog(pet.name, pet.species.uppercase(), mockText)
-                _isGeneratingResponse.value = false
-                return@launch
-            }
-
-            withContext(Dispatchers.IO) {
-                // Set system instruction with precise context for Z-XBuddy persona
-                val systemInstruction = """
-                    You are ${pet.name}, a digital ASCII companion virtual pet in an Android developer app called Z-XBuddy.
-                    You are of species: ${pet.species} (Rarity: ${pet.rarity}, Shiny: ${pet.isShiny}).
-                    Your diagnostic personality statistics are out of 100:
-                    - Debugging XP power: ${pet.debugging}
-                    - Patience capacity: ${pet.patience}
-                    - Chaos/Trickster level: ${pet.chaos}
-                    - Wisdom/Insights level: ${pet.wisdom}
-                    - Snark/Sarcasm intensity: ${pet.snark}
-                    
-                    Respond strictly within your character! 
-                    - Keep your replies short (1 to 3 sentences maximum) and aligned with terminal retro themes.
-                    - If your snark is high (above 65), make sarcastic, witty remarks about bad code and compilation errors.
-                    - If your patience is low (below 35), sound rushed or mildly annoyed.
-                    - If wisdom is high (above 75), provide clever pseudo-architectural solutions or philosophical statements.
-                    - Refer to terminal elements like code bugs, memory leaks, Zig compiler benchmarks, null exceptions, or Bluetooth connections where relevant.
-                    - Render yourself as a funny Pocket CPU companion! Do not explain that you are an AI, be the pet itself.
-                """.trimIndent()
-
-                val request = GenerateContentRequest(
-                    contents = listOf(Content(parts = listOf(Part(text = input)))),
-                    systemInstruction = Content(parts = listOf(Part(text = systemInstruction)))
-                )
-
-                try {
-                    val response = RetrofitClient.service.generateContent(apiKey, request)
-                    val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                        ?: "No reaction registered. Core buffer overflow."
-                    withContext(Dispatchers.Main) {
-                        addLog(pet.name, pet.species.uppercase(), text)
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        addLog(pet.name, "ERROR", "REST channel error: ${e.localizedMessage}. Falling back to default protocol behavior.")
-                        val fallback = getSandboxResponse(pet, input)
-                        addLog(pet.name, pet.species.uppercase(), fallback)
-                    }
-                } finally {
-                    withContext(Dispatchers.Main) {
+            when (_selectedProvider.value) {
+                AiProviderType.Sandbox -> {
+                    delay(1200)
+                    val mockText = getSandboxResponse(pet, input)
+                    addLog(pet.name, pet.species.uppercase(), mockText)
+                    _isGeneratingResponse.value = false
+                }
+                AiProviderType.Gemini -> {
+                    val apiKey = resolveGeminiKey()
+                    if (apiKey == null) {
+                        addLog(pet.name, "ERROR", "Gemini API key not configured. Set it with /provider-key gemini <key> or switch to sandbox mode.")
                         _isGeneratingResponse.value = false
+                        return@launch
                     }
+                    chatWithGemini(pet, input, apiKey)
+                }
+                AiProviderType.OpenRouter -> {
+                    val apiKey = resolveOpenRouterKey()
+                    if (apiKey == null) {
+                        addLog(pet.name, "ERROR", "OpenRouter API key not configured. Set it with /provider-key openrouter <key> or switch to sandbox mode.")
+                        _isGeneratingResponse.value = false
+                        return@launch
+                    }
+                    chatWithOpenRouter(pet, input, apiKey)
                 }
             }
+        }
+    }
+
+    /** Resolves Gemini API key: in-app config first, then BuildConfig fallback. */
+    private fun resolveGeminiKey(): String? {
+        val cfgKey = _providerConfigs.value[AiProviderType.Gemini]?.apiKey
+            ?.takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
+        if (cfgKey != null) return cfgKey
+        return BuildConfig.GEMINI_API_KEY
+            .takeIf { it.isNotBlank() && it != "MY_GEMINI_API_KEY" }
+    }
+
+    /** Resolves OpenRouter API key from in-app config. */
+    private fun resolveOpenRouterKey(): String? {
+        return _providerConfigs.value[AiProviderType.OpenRouter]?.apiKey
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private suspend fun chatWithGemini(pet: PetEntity, input: String, apiKey: String) {
+        val systemInstruction = """
+            You are ${pet.name}, a digital ASCII companion virtual pet in an Android developer app called Z-XBuddy.
+            You are of species: ${pet.species} (Rarity: ${pet.rarity}, Shiny: ${pet.isShiny}).
+            Your diagnostic personality statistics are out of 100:
+            - Debugging XP power: ${pet.debugging}
+            - Patience capacity: ${pet.patience}
+            - Chaos/Trickster level: ${pet.chaos}
+            - Wisdom/Insights level: ${pet.wisdom}
+            - Snark/Sarcasm intensity: ${pet.snark}
+
+            Respond strictly within your character!
+            - Keep your replies short (1 to 3 sentences maximum) and aligned with terminal retro themes.
+            - If your snark is high (above 65), make sarcastic, witty remarks about bad code and compilation errors.
+            - If your patience is low (below 35), sound rushed or mildly annoyed.
+            - If wisdom is high (above 75), provide clever pseudo-architectural solutions or philosophical statements.
+            - Refer to terminal elements like code bugs, memory leaks, Zig compiler benchmarks, null exceptions, or Bluetooth connections where relevant.
+            - Render yourself as a funny Pocket CPU companion! Do not explain that you are an AI, be the pet itself.
+        """.trimIndent()
+
+        withContext(Dispatchers.IO) {
+            val request = GenerateContentRequest(
+                contents = listOf(Content(parts = listOf(Part(text = input)))),
+                systemInstruction = Content(parts = listOf(Part(text = systemInstruction)))
+            )
+            try {
+                val response = RetrofitClient.service.generateContent(apiKey, request)
+                val text = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                    ?: "No reaction registered. Core buffer overflow."
+                withContext(Dispatchers.Main) {
+                    addLog(pet.name, pet.species.uppercase(), text)
+                }
+            } catch (e: Exception) {
+                fallbackToSandbox(pet, input, e)
+            } finally {
+                withContext(Dispatchers.Main) { _isGeneratingResponse.value = false }
+            }
+        }
+    }
+
+    private suspend fun chatWithOpenRouter(pet: PetEntity, input: String, apiKey: String) {
+        val systemPrompt = """
+            You are ${pet.name}, a digital ASCII companion virtual pet in an Android developer app.
+            You are of species: ${pet.species} (Rarity: ${pet.rarity}).
+            Respond strictly in character with 1-3 sentences. Be a retro terminal pet!
+        """.trimIndent()
+
+        withContext(Dispatchers.IO) {
+            val request = OpenRouterRequest(
+                messages = listOf(
+                    OpenRouterMessage("system", systemPrompt),
+                    OpenRouterMessage("user", input)
+                )
+            )
+            try {
+                val response = OpenRouterRetrofitClient.service.chatCompletion(
+                    authorization = "Bearer $apiKey",
+                    request = request
+                )
+                val text = response.choices?.firstOrNull()?.message?.content
+                    ?: response.error?.message?.let { "API error: $it" }
+                    ?: "No reaction registered. Core buffer overflow."
+                withContext(Dispatchers.Main) {
+                    addLog(pet.name, pet.species.uppercase(), text)
+                }
+            } catch (e: Exception) {
+                fallbackToSandbox(pet, input, e)
+            } finally {
+                withContext(Dispatchers.Main) { _isGeneratingResponse.value = false }
+            }
+        }
+    }
+
+    private suspend fun fallbackToSandbox(pet: PetEntity, input: String, cause: Exception) {
+        withContext(Dispatchers.Main) {
+            addLog(pet.name, "ERROR", "REST channel error: ${cause.localizedMessage}. Falling back to sandbox mode.")
+            delay(1000)
+            val fallback = getSandboxResponse(pet, input)
+            addLog(pet.name, pet.species.uppercase(), fallback)
         }
     }
 
@@ -451,9 +854,18 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 - /feed                              → Feed the pet
 - /train                              → Run a patch‑code experiment
 - /play                               → Interact (poke) with the pet
+- /pet | /headpat                    → Pet your buddy gently
+- /sleep | /nap                      → Pause the care loop (pet won't decay)
+- /wake | /resume                    → Resume the care loop
+- /rename <name>                     → Rename your active pet
+- /fortune | /predict                → Let the pet read your coding fate
 - /clean | /hygiene                  → Clean/local hygiene action
-- /mode <dev|personal|focus|ai>      → Switch mode (updates thanos)
+- /mode <dev|personal|focus|ai>      → Switch mode (affects stats & theme)
 - /theme <matrix|amber|blue|pink|white|dark> → Change UI theme
+- /provider <gemini|openrouter|sandbox> → Switch AI provider
+- /provider-key <provider> <key>     → Set API key for a provider
+- /test-ai | /ai-status              → Test current provider connectivity
+- /review <code>                     → Submit code for review
 - /scan | /sync                      → Start BLE scan
 - /disconnect                        → End BLE connection
 - /clear                             → Clear debug logs
@@ -461,8 +873,12 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
                 true
             }
             "stats", "profile" -> {
+                val sleepStatus = if (_isSleeping.value) "💤 SLEEPING" else "🟢 AWAKE"
+                val modeStr = _activeMode.value.uppercase()
+                val providerStr = _selectedProvider.value.displayName
                 addLog(pet.name, "STATS",
-                    """${pet.name}: ${pet.species} ${pet.rarity}
+                    """${pet.name}: ${pet.species} ${pet.rarity} | $sleepStatus
+MODE: $modeStr | AI: $providerStr
 Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
 ⚡ Energy ${pet.energy}% | 🍽️ Hunger ${pet.hunger}%
 😊 Happiness ${_happiness.value}% | 🧼 Hygiene ${_hygiene.value}%
@@ -498,25 +914,22 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
                 true
             }
             "mode" -> {
-                val mode = parts.getOrNull(1)?.lowercase()
-                val label = when (mode) {
-                    "dev"    -> "DEV MODE: coding‑skill boost, extra XP multipliers"
-                    "personal" -> "PERSONAL MODE: mood & care priority"
-                    "focus"  -> "FOCUS MODE: low‑noise prompts, higher patience"
-                    "ai"     -> "AI MENTOR MODE: local commands first, Gemini help later"
-                    else     -> "UNKNOWN MODE"
+                val rawMode = parts.getOrNull(1)?.lowercase() ?: ""
+                val canonicalMode = when (rawMode) {
+                    "dev", "developer" -> "dev"
+                    "personal" -> "personal"
+                    "focus" -> "focus"
+                    "ai", "mentor", "ai-mentor" -> "ai-mentor"
+                    else -> null
                 }
-                addLog(pet.name, "MODE", label)
-                val themeFromMode = when (mode) {
-                    "matrix", "green" -> "Matrix Green"
-                    "amber", "amber glow" -> "Amber Glow"
-                    "blue", "commodore", "commodore blue" -> "Commodore Blue"
-                    "pink", "cyberpunk", "cyberpunk pink" -> "Cyberpunk Pink"
-                    "white", "classic", "classic white" -> "Classic White"
-                    "dark", "elegant", "elegant dark" -> "Elegant Dark"
-                    else -> "Elegant Dark"
+                if (canonicalMode == null) {
+                    addLog(pet.name, "MODE", "Unknown mode. Valid: dev, personal, focus, ai")
+                } else {
+                    _activeMode.value = canonicalMode
+                    val mod = ModeRegistry.modes[canonicalMode]
+                    addLog(pet.name, "MODE", mod?.label ?: canonicalMode)
+                    if (mod != null) setTerminalTheme(mod.themeName)
                 }
-                setTerminalTheme(themeFromMode)
                 true
             }
             "theme" -> {
@@ -560,6 +973,87 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
             }
             "clear" -> {
                 clearAllLogs()
+                true
+            }
+            "sleep", "nap" -> {
+                _isSleeping.value = true
+                addLog(pet.name, "CARE", "💤 ${pet.name} is now sleeping. Care loop paused. Use /wake to resume.")
+                true
+            }
+            "wake", "resume" -> {
+                _isSleeping.value = false
+                addLog(pet.name, "CARE", "☀️ ${pet.name} woke up! Care loop resumed.")
+                true
+            }
+            "pet", "headpat" -> {
+                petPet()
+                true
+            }
+            "rename" -> {
+                val newName = parts.drop(1).joinToString(" ").trim()
+                if (newName.isBlank()) {
+                    addLog(pet.name, "ERROR", "Usage: /rename <new name>")
+                } else {
+                    renamePet(newName)
+                }
+                true
+            }
+            "fortune", "predict" -> {
+                val fortune = fortuneTell()
+                addLog(pet.name, "FORTUNE", "🔮 ${fortune}")
+                true
+            }
+            "test-ai", "ai-status", "ai" -> {
+                testAIConnection()
+                true
+            }
+            "review" -> {
+                val snippet = parts.drop(1).joinToString(" ")
+                if (snippet.isBlank()) {
+                    addLog(pet.name, "ERROR", "Usage: /review <code snippet> — or open the REVIEW tab to paste larger blocks.")
+                } else {
+                    _codeReviewInput.value = snippet
+                    reviewCode()
+                }
+                true
+            }
+            "provider" -> {
+                val providerArg = parts.getOrNull(1)?.lowercase() ?: ""
+                val provider = when (providerArg) {
+                    "gemini" -> AiProviderType.Gemini
+                    "openrouter" -> AiProviderType.OpenRouter
+                    "sandbox", "local" -> AiProviderType.Sandbox
+                    else -> null
+                }
+                if (provider == null) {
+                    val current = _selectedProvider.value.displayName
+                    addLog(pet.name, "PROVIDER", "Current: $current. Usage: /provider <gemini|openrouter|sandbox>")
+                } else {
+                    _selectedProvider.value = provider
+                    addLog(pet.name, "PROVIDER", "Switched to ${provider.displayName}")
+                }
+                true
+            }
+            "provider-key", "set-key" -> {
+                val name = parts.getOrNull(1)?.lowercase() ?: ""
+                val key = parts.drop(2).joinToString(" ").trim()
+                if (key.isBlank()) {
+                    addLog(pet.name, "ERROR", "Usage: /provider-key <gemini|openrouter> YOUR_API_KEY")
+                } else {
+                    val target = when (name) {
+                        "gemini" -> AiProviderType.Gemini
+                        "openrouter" -> AiProviderType.OpenRouter
+                        else -> null
+                    }
+                    if (target == null) {
+                        addLog(pet.name, "ERROR", "Unknown provider: $name. Use: gemini, openrouter")
+                    } else {
+                        val configs = _providerConfigs.value.toMutableMap()
+                        configs[target] = configs[target]?.copy(apiKey = key) ?: AiProviderConfig(target, apiKey = key)
+                        _providerConfigs.value = configs
+                        addLog(pet.name, "CONFIG", "API key set for ${target.displayName}")
+                    }
+                }
                 true
             }
             else -> false
