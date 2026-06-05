@@ -1942,11 +1942,11 @@ fun CodeReviewView(
         Spacer(modifier = Modifier.height(6.dp))
         val tips = buildList {
             add("The review tone depends on your pet's personality stats.")
-            if (activePet != null) {
-                if (activePet!!.snark > 65) add("High snark → expect roasting of variable names and formatting.")
-                if (activePet!!.wisdom > 70) add("High wisdom → architectural insight and philosophy.")
-                if (activePet!!.chaos > 75) add("High chaos → unhinged suggestions and risky optimizations.")
-                if (activePet!!.debugging > 75) add("High debugging → detailed bug-hunting analysis.")
+            activePet?.let { p ->
+                if (p.snark > 65) add("High snark → expect roasting of variable names and formatting.")
+                if (p.wisdom > 70) add("High wisdom → architectural insight and philosophy.")
+                if (p.chaos > 75) add("High chaos → unhinged suggestions and risky optimizations.")
+                if (p.debugging > 75) add("High debugging → detailed bug-hunting analysis.")
             }
             add("Set a Gemini API key for AI-powered reviews instead of sandbox mode.")
         }

@@ -21,3 +21,6 @@ release.keystore
 *.jks
 *.keystore
 apk/
+# Play Store listing assets (keep local, not on GitHub)
+STORE_LISTING.md
+store_assets/
