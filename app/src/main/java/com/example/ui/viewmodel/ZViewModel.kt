@@ -55,6 +55,34 @@ sealed class SimonGame {
     ) : SimonGame()
 }
 
+/** Represents the Whack-a-Bug mini game. */
+sealed class BugGame {
+    data object Idle : BugGame()
+    data class Playing(
+        val bugs: List<Boolean>,      // 9 cells, true = bug visible
+        val score: Int,
+        val timeLeftSec: Int,
+        val bugSpawnCounter: Int = 0
+    ) : BugGame()
+    data class GameOver(
+        val score: Int,
+        val squished: Int,
+        val pointsAwarded: Int
+    ) : BugGame()
+}
+
+/** Represents the Lucky Spin slot machine. */
+sealed class LuckySpin {
+    data object Idle : LuckySpin()
+    data class Spinning(val bet: Int) : LuckySpin()
+    data class Result(
+        val reels: List<Int>,    // 0-2 index per reel
+        val winnings: Int,       // 0 if lost
+        val isJackpot: Boolean,
+        val bet: Int
+    ) : LuckySpin()
+}
+
 /** Represents a wild pet encounter. */
 sealed class WildEncounter {
     data object None : WildEncounter()
@@ -69,6 +97,15 @@ sealed class WildEncounter {
     data object Captured : WildEncounter()
     data object Escaped : WildEncounter()
 }
+
+/** A sparkle particle for shiny overlay animation. */
+data class ShinySparkle(
+    val id: Int,
+    val x: Float,       // 0.0-1.0 relative position
+    val y: Float,       // 0.0-1.0 relative position
+    val size: Float,    // emoji scale 0.5-1.5
+    val delay: Long     // ms delay before appearing
+)
 
 /** Maps pet level to a lifecycle stage string. */
 private fun Int.lifecycleStage(): String = when {
@@ -190,6 +227,25 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
     private val _simonHighScore = MutableStateFlow(0)
     val simonHighScore: StateFlow<Int> = _simonHighScore.asStateFlow()
 
+    // ── Whack-a-Bug game state ─────────────────────────────────────────────
+    private val _bugGame = MutableStateFlow<BugGame>(BugGame.Idle)
+    val bugGame: StateFlow<BugGame> = _bugGame.asStateFlow()
+
+    private val _bugHighScore = MutableStateFlow(0)
+    val bugHighScore: StateFlow<Int> = _bugHighScore.asStateFlow()
+    private var _totalBugsSquished = 0 // lifetime counter for achievement
+
+    // ── Lucky Spin game state ──────────────────────────────────────────────
+    private val _luckySpin = MutableStateFlow<LuckySpin>(LuckySpin.Idle)
+    val luckySpin: StateFlow<LuckySpin> = _luckySpin.asStateFlow()
+
+    // ── Shiny sparkle animation ──────────────────────────────────────────
+    private val _shinySparkles = MutableStateFlow<List<ShinySparkle>>(emptyList())
+    val shinySparkles: StateFlow<List<ShinySparkle>> = _shinySparkles.asStateFlow()
+
+    private val _isShinyAnimating = MutableStateFlow(false)
+    val isShinyAnimating: StateFlow<Boolean> = _isShinyAnimating.asStateFlow()
+
     init {
         // Animation ticker to alternate pet ASCII frames roughly every 1.5 seconds for idle 60fps vibes
         viewModelScope.launch {
@@ -273,6 +329,10 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 
     fun toggleScanlines() {
         _isScanlineOverlayEnabled.value = !_isScanlineOverlayEnabled.value
+    }
+
+    fun updateSelectedProvider(provider: AiProviderType) {
+        _selectedProvider.value = provider
     }
 
     fun addLog(petName: String, tag: String, message: String) {
@@ -461,6 +521,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
                 asciiArt = art,
                 captureDifficulty = finalDifficulty.coerceIn(0.05f, 0.98f)
             )
+            if (shinyRoll) startShinySparkles(spec.name.hashCode())
             addLog(pet.name, "WILD",
                 "🔥 Wild ${spec.name} appeared! Rarity: ${rarity}${if (shinyRoll) " ⭐⭐ SHINY ⭐⭐" else ""}"
             )
@@ -489,6 +550,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             val captureChance = (encounter.captureDifficulty + statBonus).coerceIn(0.05f, 0.99f)
             val roll = r.nextFloat()
 
+            stopShinySparkles()
             if (roll <= captureChance) {
                 _wildCaptures.value += 1
                 _wildEncounter.value = WildEncounter.Captured
@@ -551,6 +613,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
     fun fleeWildEncounter() {
         val encounter = _wildEncounter.value
         if (encounter is WildEncounter.Found || encounter is WildEncounter.Hunting) {
+            stopShinySparkles()
             _wildEncounter.value = WildEncounter.None
             _wildEncounterLog.value = ""
             val petName = activePet.value?.name ?: "SYSTEM"
@@ -638,6 +701,188 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 
     fun resetSimonGame() {
         _simonGame.value = SimonGame.Idle
+    }
+
+    // ── Shiny Sparkle Animation ──────────────────────────────────────────
+    fun startShinySparkles(seed: Int = 0) {
+        if (_isShinyAnimating.value) return
+        _isShinyAnimating.value = true
+        viewModelScope.launch {
+            val sparkles = SpeciesData.generateSparkles(5, seed).mapIndexed { i, (x, y) ->
+                ShinySparkle(id = i, x = x, y = y, size = 0.6f + (i * 0.15f), delay = i * 200L)
+            }
+            _shinySparkles.value = sparkles
+            // Animate by cycling sparkle positions every 1.2s
+            while (_isShinyAnimating.value) {
+                delay(250)
+                val shifted = _shinySparkles.value.map { s ->
+                    s.copy(
+                        x = ((s.x + 0.05f) % 0.9f).coerceAtLeast(0.1f),
+                        y = ((s.y - 0.03f) % 0.9f).coerceAtLeast(0.1f)
+                    )
+                }
+                _shinySparkles.value = shifted
+            }
+        }
+    }
+
+    fun stopShinySparkles() {
+        _isShinyAnimating.value = false
+        _shinySparkles.value = emptyList()
+    }
+
+    // ── Whack-a-Bug Mini Game ────────────────────────────────────────────
+    fun startBugGame() {
+        val pet = activePet.value
+        if (pet == null) {
+            addLog("SYSTEM", "ERROR", "No active pet to play with! Hatch one first.")
+            return
+        }
+        if (_bugGame.value is BugGame.Playing) return
+        _bugGame.value = BugGame.Playing(
+            bugs = List(9) { false },
+            score = 0,
+            timeLeftSec = 30
+        )
+        addLog(pet.name, "GAME", "🪳 Whack-a-Bug started! Squish bugs as they pop up!")
+        viewModelScope.launch { bugGameLoop() }
+    }
+
+    private suspend fun bugGameLoop() {
+        val pet = activePet.value
+        var tickCount = 0
+        while (true) {
+            val state = _bugGame.value
+            if (state !is BugGame.Playing) break
+
+            delay(1000)
+            tickCount++
+
+            // Update timer
+            val newTime = state.timeLeftSec - 1
+            if (newTime <= 0) {
+                // Game over!
+                val pointsAwarded = state.score * 2
+                _zxPoints.value += pointsAwarded
+                _totalBugsSquished += state.score
+                if (state.score > _bugHighScore.value) _bugHighScore.value = state.score
+                if (state.score >= 20) trackAchievement("whack_master")
+                progressAchievement("bug_squisher", _totalBugsSquished.coerceAtMost(50), 50)
+                checkZxAchievements(_zxPoints.value)
+                _bugGame.value = BugGame.GameOver(
+                    score = state.score,
+                    squished = state.score,
+                    pointsAwarded = pointsAwarded
+                )
+                val mood = when {
+                    pet?.snark != null && pet.snark > 70 -> "Pfft, I could've squished twice that many."
+                    pet?.wisdom != null && pet.wisdom > 70 -> "Precision over speed. Well done."
+                    pet?.chaos != null && pet.chaos > 70 -> "CHAOS SQUISHING! BUGS FLYING EVERYWHERE!"
+                    else -> "Nice reflexes! You squished ${state.score} bugs!"
+                }
+                addLog(pet?.name ?: "PLAYER", "GAME", "⏰ Time's up! Score: ${state.score} | +${pointsAwarded}ZX")
+                if (pet != null) addLog(pet.name, "GAME", "${pet.name}: $mood")
+                break
+            }
+
+            // Randomly spawn/despawn bugs
+            val newBugs = state.bugs.toMutableList()
+            val spawnCount = r.nextInt(3) + 1 // 1-3 new bugs
+            val emptyCells = newBugs.indices.filter { !newBugs[it] }
+            repeat(spawnCount.coerceAtMost(emptyCells.size)) {
+                val idx = emptyCells[r.nextInt(emptyCells.size)]
+                newBugs[idx] = true
+            }
+            // Despawn some existing bugs (they escaped!)
+            val activeIndices = newBugs.indices.filter { newBugs[it] }
+            if (activeIndices.size > 3) {
+                val despawnCount = activeIndices.size - 3
+                repeat(despawnCount.coerceAtMost(activeIndices.size)) {
+                    val idx = activeIndices[r.nextInt(activeIndices.size)]
+                    newBugs[idx] = false
+                }
+            }
+
+            _bugGame.value = state.copy(
+                bugs = newBugs,
+                timeLeftSec = newTime,
+                bugSpawnCounter = tickCount
+            )
+        }
+    }
+
+    fun squishBug(index: Int) {
+        val state = _bugGame.value
+        if (state !is BugGame.Playing) return
+        if (index < 0 || index >= state.bugs.size) return
+        if (!state.bugs[index]) return // No bug there — miss
+        val newBugs = state.bugs.toMutableList()
+        newBugs[index] = false
+        _bugGame.value = state.copy(bugs = newBugs, score = state.score + 1)
+    }
+
+    fun resetBugGame() {
+        _bugGame.value = BugGame.Idle
+    }
+
+    // ── Lucky Spin Slot Machine ───────────────────────────────────────────
+    fun startLuckySpin(bet: Int) {
+        val pet = activePet.value
+        if (pet == null) {
+            addLog("SYSTEM", "ERROR", "No active pet to gamble with! Hatch one first.")
+            return
+        }
+        if (_luckySpin.value is LuckySpin.Spinning) return
+        if (_zxPoints.value < bet) {
+            addLog(pet.name, "SPIN", "Not enough ZX Points! You have ${_zxPoints.value}, need $bet.")
+            return
+        }
+        _zxPoints.value -= bet
+        _luckySpin.value = LuckySpin.Spinning(bet)
+        addLog(pet.name, "SPIN", "🎰 Spinning the Lucky Slot! Bet: $bet ZX Points...")
+        viewModelScope.launch {
+            delay(1800)
+            val reels = List(3) { r.nextInt(3) } // 0,1,2 — three symbols
+            val uniqueCount = reels.distinct().size
+            val isJackpot = uniqueCount == 1 // all three match
+            val isWin = uniqueCount <= 2    // 2 or 3 match
+            val winnings = when {
+                isJackpot -> bet * 5
+                isWin -> bet * 2
+                else -> 0
+            }
+            if (winnings > 0) _zxPoints.value += winnings
+            val result = LuckySpin.Result(reels = reels, winnings = winnings, isJackpot = isJackpot, bet = bet)
+            _luckySpin.value = result
+            val resultMsg = when {
+                isJackpot -> "🎰 JACKPOT! ${reels.joinToString(" ")} | Won ${winnings}ZX!"
+                isWin -> "🎰 Nice! ${reels.joinToString(" ")} | Won ${winnings}ZX!"
+                else -> "🎰 ${reels.joinToString(" ")} | No luck this time."
+            }
+            addLog(pet.name, "SPIN", resultMsg)
+            if (winnings > 0) {
+                trackAchievement("lucky_dev")
+                checkZxAchievements(_zxPoints.value)
+                val mood = when {
+                    pet.snark > 70 -> "Lady Luck smiles upon you. For now."
+                    pet.wisdom > 70 -> "The odds were in your favor this time."
+                    pet.chaos > 70 -> "RANDOMNESS BLESSES THE CHAOTIC!"
+                    else -> "Lucky spin! The universe rewards bold coders."
+                }
+                addLog(pet.name, "SPIN", "${pet.name}: $mood")
+            } else {
+                val mood = when {
+                    pet.snark > 70 -> "Ha! Should've spent that on feeding me."
+                    pet.wisdom > 70 -> "The house always wins in the end."
+                    else -> "Tough break. Want to try again?"
+                }
+                addLog(pet.name, "SPIN", "${pet.name}: $mood")
+            }
+        }
+    }
+
+    fun resetLuckySpin() {
+        _luckySpin.value = LuckySpin.Idle
     }
 
     private fun generateSimonSequence(round: Int, existing: List<Int> = emptyList()): List<Int> {
@@ -1262,11 +1507,11 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 - /provider-key <provider> <key>     → Set API key for a provider
 - /test-ai | /ai-status              → Test current provider connectivity
 - /review <code>                     → Submit code for review
-	- /hunt | /wild                      → Search for a wild pet encounter
-	- /catch | /capture                  → Attempt to capture the wild pet
-	- /flee | /run                       → Retreat from wild encounter
-	- /simon | /memory                     → Play Simon Says memory game
-	- /achievements | /badges             → View your unlocked achievements
+- /hunt | /wild                      → Search for a wild pet encounter
+- /catch | /capture                  → Attempt to capture the wild pet
+- /flee | /run                       → Retreat from wild encounter
+- /simon | /memory                     → Play Simon Says memory game
+- /achievements | /badges             → View your unlocked achievements
 - /scan | /sync                      → Start BLE scan
 - /disconnect                        → End BLE connection
 - /clear                             → Clear debug logs

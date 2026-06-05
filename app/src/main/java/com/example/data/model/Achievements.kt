@@ -32,5 +32,8 @@ object AchievementRegistry {
         AchievementDef("fortune_teller", "Fortune Seeker", "Get your fortune told", "🔮"),
         AchievementDef("sleepyhead", "Power Napper", "Put your pet to sleep", "💤"),
         AchievementDef("code_review", "Code Critic", "Review code with your pet", "📝"),
+        AchievementDef("bug_squisher", "Bug Squisher", "Squish 50 bugs in Whack-a-Bug", "🪳", maxProgress = 50),
+        AchievementDef("whack_master", "Whack Master", "Score 20+ in one Whack-a-Bug game", "🏆"),
+        AchievementDef("lucky_dev", "Lucky Dev", "Win your first Lucky Spin", "🍀"),
     )
 }

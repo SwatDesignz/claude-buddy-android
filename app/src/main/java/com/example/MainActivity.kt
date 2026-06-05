@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -49,7 +50,10 @@ import com.example.data.model.SpeciesData
 import com.example.data.model.SpeciesSpec
 import com.example.data.model.lifecycle
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.viewmodel.BugGame
+import com.example.ui.viewmodel.LuckySpin
 import com.example.ui.viewmodel.SimonGame
+import com.example.ui.viewmodel.ShinySparkle
 import com.example.ui.viewmodel.WildEncounter
 import com.example.ui.viewmodel.ZXDigitalPetView
 import com.example.ui.viewmodel.ZXDigitalPetViewFactory
@@ -115,6 +119,7 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
 
     // Screen State tab - UI controlled locally for ultra-fast, robust response times
     var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW, WILD, GAME, ACHIEVE
+    var gameSubTab by remember { mutableStateOf("SIMON") } // SIMON, BUG, SPIN — sub-tabs within F7:GAME
 
     // Map theme names to cathode ray phosphoresces colors
     val themeColor = remember(currentTheme) {
@@ -308,14 +313,44 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                         )
                     }
                     "GAME" -> {
-                        SimonSaysView(
-                            viewModel = viewModel,
-                            activePet = activePet,
-                            simonGame = simonGame,
-                            highScore = simonHighScore,
-                            glowStyle = glowStyle,
-                            themeColor = themeColor
-                        )
+                        // Sub-tab bar
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                GameSubTabButton("SIMON", gameSubTab, themeColor, Modifier.fillMaxWidth()) { gameSubTab = "SIMON" }
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                GameSubTabButton("BUG", gameSubTab, themeColor, Modifier.fillMaxWidth()) { gameSubTab = "BUG" }
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                GameSubTabButton("SPIN", gameSubTab, themeColor, Modifier.fillMaxWidth()) { gameSubTab = "SPIN" }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        when (gameSubTab) {
+                            "SIMON" -> SimonSaysView(
+                                viewModel = viewModel,
+                                activePet = activePet,
+                                simonGame = simonGame,
+                                highScore = simonHighScore,
+                                glowStyle = glowStyle,
+                                themeColor = themeColor
+                            )
+                            "BUG" -> BugSaysView(
+                                viewModel = viewModel,
+                                activePet = activePet,
+                                glowStyle = glowStyle,
+                                themeColor = themeColor
+                            )
+                            "SPIN" -> LuckySpinView(
+                                viewModel = viewModel,
+                                activePet = activePet,
+                                glowStyle = glowStyle,
+                                themeColor = themeColor
+                            )
+                        }
                     }
                     "ACHIEVE" -> {
                         AchievementsView(
@@ -804,7 +839,8 @@ fun PetConsoleView(
                         Text(
                             text = petFrame,
                             style = glowStyle.copy(fontSize = 18.sp, lineHeight = 20.sp),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            color = if (activePet.isShiny) SpeciesData.getShinyColor(activePet.species) else themeColor
                         )
                         Spacer(modifier = Modifier.height(14.dp))
                         Text(
@@ -1424,11 +1460,16 @@ fun BluetoothSyncView(
     glowStyle: TextStyle,
     themeColor: Color
 ) {
+    val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsStateWithLifecycle()
+    val selectedProvider by viewModel.selectedProvider.collectAsStateWithLifecycle()
+    val providerConfigs by viewModel.providerConfigs.collectAsStateWithLifecycle()
+
     Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
     ) {
+        // ── BLE Section ──
         Text(
             text = "=== [ CLAUDE DESKTOP BLE BRIDGING ] ===",
             style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -1441,111 +1482,169 @@ fun BluetoothSyncView(
             fontSize = 10.sp,
             textAlign = TextAlign.Center
         )
-
         Spacer(modifier = Modifier.height(18.dp))
 
-        // Sync radar scanning element drawing using Custom Compose Layout
+        // Sync radar
         Box(
-            modifier = Modifier.size(100.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
             contentAlignment = Alignment.Center
         ) {
             val infiniteTransition = rememberInfiniteTransition(label = "Radar sync")
             val scale by infiniteTransition.animateFloat(
-                initialValue = 0.2f,
-                targetValue = 1.0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1500, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
+                initialValue = 0.2f, targetValue = 1.0f,
+                animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing), repeatMode = RepeatMode.Restart),
                 label = "radar scale"
             )
-            val alpha by infiniteTransition.animateFloat(
-                initialValue = 0.8f,
-                targetValue = 0.0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1500, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
+            val radarAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.8f, targetValue = 0.0f,
+                animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing), repeatMode = RepeatMode.Restart),
                 label = "radar alpha"
             )
-
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                if (isScanning) {
-                    drawCircle(
-                        color = themeColor,
-                        radius = size.width / 2f * scale,
-                        alpha = alpha,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
-                    )
-                }
-                drawCircle(
-                    color = if (isConnected) themeColor else Color.Gray.copy(alpha = 0.3f),
-                    radius = 28.dp.toPx(),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
-                )
+            Canvas(modifier = Modifier.size(80.dp)) {
+                if (isScanning) drawCircle(color = themeColor, radius = size.width / 2f * scale, alpha = radarAlpha, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+                drawCircle(color = if (isConnected) themeColor else Color.Gray.copy(alpha = 0.3f), radius = 24.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx()))
             }
-
             Icon(
                 imageVector = if (isConnected) Icons.Default.CheckCircle else Icons.Default.Search,
                 contentDescription = "Bluetooth Status",
                 tint = if (isConnected) themeColor else Color.LightGray,
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = if (isConnected) "🟢 BRIDGE ONLINE" else if (isScanning) "🟡 SCANNING..." else "🔴 DISCONNECTED",
+            fontFamily = FontFamily.Monospace, color = if (isConnected) Color(0xFF27C93F) else Color.Gray, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { if (isConnected) viewModel.disconnectBLE() else viewModel.scanBLE() },
+            colors = ButtonDefaults.buttonColors(containerColor = if (isConnected) Color.Red.copy(alpha = 0.8f) else themeColor, contentColor = if (isConnected) Color.White else Color(0xFF381E72)),
+            shape = RoundedCornerShape(8.dp), enabled = !isScanning,
+            modifier = Modifier.align(Alignment.CenterHorizontally).height(34.dp)
+        ) {
+            Text(
+                if (isConnected) "DISCONNECT" else if (isScanning) "SCANNING..." else "SCAN",
+                fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold
             )
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+        HorizontalDivider(color = Color(0xFF49454F))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        if (isConnected) {
-            Text(
-                text = "BRIDGING PIPELINE LOGS: SYNC ONLINE [60FPS]",
-                fontFamily = FontFamily.Monospace,
-                color = themeColor,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Piping live telemetry matrices to Claude Code CLI client...\nActive process bound at index [2].",
-                color = Color.LightGray,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = { viewModel.disconnectBLE() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f), contentColor = Color.White),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .border(1.dp, Color.Red.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .testTag("disconnect_ble_button")
+        // ── AI Provider Status Section ──
+        Text(
+            text = "=== [ AI PROVIDER STATUS ] ===",
+            style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        com.example.data.model.AiProviderType.entries.forEach { provider ->
+            val isActive = selectedProvider == provider
+            val cfg = providerConfigs[provider] ?: return@forEach
+            val hasKey = cfg.apiKey.isNotBlank()
+            val nameStr = provider.displayName
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                colors = CardDefaults.cardColors(containerColor = if (isActive) Color(0xFF1A2E1A) else Color(0xFF1C1B1F)),
+                border = BorderStroke(1.dp, if (isActive) Color(0xFF27C93F).copy(alpha = 0.4f) else Color(0xFF49454F)),
+                shape = RoundedCornerShape(6.dp)
             ) {
-                Text("DISRUPT HANDSHAKE pipeline", fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Status indicator
+                    Box(modifier = Modifier.size(10.dp).background(
+                        when {
+                            isActive && hasKey -> Color(0xFF27C93F)
+                            hasKey -> Color(0xFFFFBD2E)
+                            else -> Color(0xFFFF5F56)
+                        },
+                        RoundedCornerShape(5.dp)
+                    ))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = nameStr, fontFamily = FontFamily.Monospace, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isActive) Color(0xFF27C93F) else Color(0xFFE6E1E5))
+                        Text(
+                            text = if (hasKey) "🔑 Key configured" else "⚠️ No API key",
+                            fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = Color.Gray
+                        )
+                    }
+                    if (isActive) {
+                        Text(text = "● ACTIVE", fontFamily = FontFamily.Monospace, fontSize = 9.sp, color = Color(0xFF27C93F))
+                    }
+                }
             }
-        } else {
-            Text(
-                text = if (isScanning) ">> PROBING NEARBY CARRIERS..." else ">> BRIDGE PIPELINE DISCONNECTED",
-                fontFamily = FontFamily.Monospace,
-                color = Color.Gray,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = { viewModel.scanBLE() },
-                colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color(0xFF381E72)),
-                shape = RoundedCornerShape(8.dp),
-                enabled = !isScanning,
-                modifier = Modifier
-                    .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .testTag("scan_ble_button")
-            ) {
-                Text(
-                    text = if (isScanning) "Compiling scanning indices..." else "zig build-sync --target=claude-cli",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Provider quick-test button
+        Button(
+            onClick = { viewModel.testAIConnection() },
+            modifier = Modifier.fillMaxWidth().height(36.dp).border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+            colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color(0xFF381E72)),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("TEST CURRENT PROVIDER", fontFamily = FontFamily.Monospace, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Connection status
+        Spacer(modifier = Modifier.height(6.dp))
+        val statusText = when (val s = aiConnectionStatus) {
+            is com.example.ui.viewmodel.AiStatus.Idle -> "Idle — tap TEST to ping ${selectedProvider.displayName}"
+            is com.example.ui.viewmodel.AiStatus.Testing -> "Testing connectivity..."
+            is com.example.ui.viewmodel.AiStatus.Connected -> "✅ Connected (${s.latencyMs}ms)"
+            is com.example.ui.viewmodel.AiStatus.Failed -> "❌ ${s.message}"
+        }
+        val statusColor = when (aiConnectionStatus) {
+            is com.example.ui.viewmodel.AiStatus.Connected -> Color(0xFF27C93F)
+            is com.example.ui.viewmodel.AiStatus.Failed -> Color(0xFFFF5F56)
+            is com.example.ui.viewmodel.AiStatus.Testing -> Color(0xFFFFBD2E)
+            else -> Color.Gray
+        }
+        Text(
+            text = statusText,
+            fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = statusColor,
+            modifier = Modifier.fillMaxWidth().background(Color(0xFF1C1B1F), RoundedCornerShape(4.dp)).padding(8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Provider switching quick commands
+        Text(
+            text = ">> QUICK SWITCH",
+            style = glowStyle.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(
+                com.example.data.model.AiProviderType.Sandbox to "SANDBOX",
+                com.example.data.model.AiProviderType.Gemini to "GEMINI",
+                com.example.data.model.AiProviderType.OpenRouter to "OPENROUTER"
+            ).forEach { (provider, label) ->
+                Button(
+                    onClick = { viewModel.updateSelectedProvider(provider) },
+                    modifier = Modifier.weight(1f).height(32.dp).border(
+                        1.dp,
+                        if (selectedProvider == provider) Color(0xFF27C93F).copy(alpha = 0.5f) else Color(0xFF49454F),
+                        RoundedCornerShape(6.dp)
+                    ),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedProvider == provider) Color(0xFF27C93F).copy(alpha = 0.15f) else Color(0xFF2B2930),
+                        contentColor = if (selectedProvider == provider) Color(0xFF27C93F) else Color(0xFF938F99)
+                    ),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(label, fontFamily = FontFamily.Monospace, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -1897,6 +1996,8 @@ fun WildEncounterView(
         }
 
         val zxPoints by viewModel.zxPoints.collectAsStateWithLifecycle()
+        val shinySparkles by viewModel.shinySparkles.collectAsStateWithLifecycle()
+        val isShinyAnimating by viewModel.isShinyAnimating.collectAsStateWithLifecycle()
         Text(
             text = "Captures this session: $wildCaptures | ZX Points: $zxPoints",
             color = Color.Gray,
@@ -1964,50 +2065,67 @@ fun WildEncounterView(
                 }
             }
             is WildEncounter.Found -> {
-                // Wild pet display
+                // Wild pet display with shiny effects
+                val shinyColor = SpeciesData.getShinyColor(enc.speciesName)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, getRarityColor(enc.rarity).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                        .border(
+                            2.dp,
+                            if (enc.isShiny) shinyColor.copy(alpha = 0.8f)
+                            else getRarityColor(enc.rarity).copy(alpha = 0.6f),
+                            RoundedCornerShape(8.dp)
+                        )
                         .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp))
                         .padding(12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // Shiny sparkle
-                        if (enc.isShiny) {
+                    Box(modifier = Modifier) {
+                        // Main content
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            // Shiny sparkle header
+                            if (enc.isShiny) {
+                                Text(
+                                    text = "⭐⭐ SHINY ⭐⭐",
+                                    color = shinyColor,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                            // ASCII art
                             Text(
-                                text = "⭐⭐ SHINY ⭐⭐",
-                                color = Color(0xFFFFD700),
+                                text = enc.asciiArt,
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 9.sp,
+                                color = if (enc.isShiny) shinyColor else getRarityColor(enc.rarity),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "${enc.speciesName} [${enc.rarity}]",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (enc.isShiny) shinyColor else getRarityColor(enc.rarity)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Capture chance: ${(enc.captureDifficulty * 100).toInt()}%",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 9.sp,
+                                color = Color.Gray
+                            )
                         }
-                        // ASCII art
-                        Text(
-                            text = enc.asciiArt,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 9.sp,
-                            color = getRarityColor(enc.rarity),
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "${enc.speciesName} [${enc.rarity}]",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = getRarityColor(enc.rarity)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Capture chance: ${(enc.captureDifficulty * 100).toInt()}%",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 9.sp,
-                            color = Color.Gray
-                        )
+
+                        // Shiny sparkle overlay
+                        if (enc.isShiny && isShinyAnimating) {
+                            ShinySparkleOverlay(
+                                sparkles = shinySparkles,
+                                shinyColor = shinyColor
+                            )
+                        }
                     }
                 }
             }
@@ -2156,6 +2274,36 @@ fun WildEncounterView(
                 )
             }
         }
+    }
+}
+
+// Game sub-tab selector button — call inside a Row to use weight()
+@Composable
+fun GameSubTabButton(
+    label: String,
+    currentTab: String,
+    activeColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val isActive = currentTab == label
+    Button(
+        onClick = onClick,
+        modifier = modifier
+            .height(30.dp)
+            .border(
+                1.dp,
+                if (isActive) activeColor.copy(alpha = 0.5f) else Color(0xFF49454F),
+                RoundedCornerShape(6.dp)
+            ),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isActive) activeColor else Color(0xFF2B2930),
+            contentColor = if (isActive) Color(0xFF381E72) else Color(0xFF938F99)
+        ),
+        shape = RoundedCornerShape(6.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Text(label, fontFamily = FontFamily.Monospace, fontSize = 9.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -2488,6 +2636,507 @@ fun SimonSaysView(
             fontFamily = FontFamily.Monospace,
             fontSize = 8.sp
         )
+    }
+}
+
+// ── Whack-a-Bug Mini Game ──────────────────────────────────────────────────
+@Composable
+fun BugSaysView(
+    viewModel: ZXDigitalPetView,
+    activePet: PetEntity?,
+    glowStyle: TextStyle,
+    themeColor: Color
+) {
+    val bugGame by viewModel.bugGame.collectAsStateWithLifecycle()
+    val bugHighScore by viewModel.bugHighScore.collectAsStateWithLifecycle()
+    val zxPoints by viewModel.zxPoints.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "=== [ WHACK-A-BUG ] ===",
+            style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (activePet == null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "⚠️ No active pet to play with. Hatch one in F2:HATCHERY first!",
+                color = Color(0xFFFF5F56),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+            return
+        }
+
+        // Score display
+        Text(
+            text = "High Score: $bugHighScore | ZX Points: $zxPoints",
+            color = Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        when (val game = bugGame) {
+            is BugGame.Idle -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .border(1.dp, Color(0xFF49454F), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "🪳", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Whack-a-Bug!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                            color = themeColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Bugs pop up — tap them to squish!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = "30 seconds. Go!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+            is BugGame.Playing -> {
+                // Game grid
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "⏱ ${game.timeLeftSec}s | Score: ${game.score}",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = if (game.timeLeftSec <= 10) Color(0xFFFF5F56) else themeColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // 3x3 grid
+                        for (row in 0..2) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                for (col in 0..2) {
+                                    val idx = row * 3 + col
+                                    val hasBug = game.bugs.getOrElse(idx) { false }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(1.2f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(
+                                                if (hasBug) Color(0xFF4A2C0D)
+                                                else Color(0xFF1C1B1F)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (hasBug) Color(0xFFCC7832) else Color(0xFF49454F),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable(enabled = hasBug) { viewModel.squishBug(idx) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (hasBug) {
+                                            Text(text = "🪳", fontSize = 20.sp)
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+                    }
+                }
+            }
+            is BugGame.GameOver -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFFFF5F56), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "⏰ TIME'S UP!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 16.sp,
+                            color = Color(0xFFFF5F56),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Squished: ${game.squished} bugs",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = themeColor
+                        )
+                        Text(
+                            text = "+${game.pointsAwarded} ZX Points!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFFFFCC00)
+                        )
+                        if (game.score > 0 && game.score == bugHighScore) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "🏆 NEW HIGH SCORE!",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Action buttons
+        when (bugGame) {
+            is BugGame.Idle, is BugGame.GameOver -> {
+                Button(
+                    onClick = { viewModel.startBugGame() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = themeColor,
+                        contentColor = Color(0xFF381E72)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        if (bugGame is BugGame.Idle) "🪳 START GAME"
+                        else "🔄 PLAY AGAIN",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            is BugGame.Playing -> {}
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Tips
+        Text(
+            text = ">> WHACK-A-BUG TIPS",
+            style = glowStyle.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        val tips = listOf(
+            "Tap bugs quickly before they escape!",
+            "Bugs spawn randomly across the 3×3 grid.",
+            "Higher score = more ZX Points earned.",
+            "Score 20+ in one game for the Whack Master achievement!",
+            "Can you beat your high score?"
+        )
+        for (tip in tips) {
+            Row(modifier = Modifier.padding(vertical = 1.dp)) {
+                Text(text = "• ", color = themeColor, fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+                Text(text = tip, color = Color(0xFF938F99), fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+            }
+        }
+    }
+}
+
+// ── Lucky Spin Slot Machine ────────────────────────────────────────────────
+@Composable
+fun LuckySpinView(
+    viewModel: ZXDigitalPetView,
+    activePet: PetEntity?,
+    glowStyle: TextStyle,
+    themeColor: Color
+) {
+    val luckySpin by viewModel.luckySpin.collectAsStateWithLifecycle()
+    val zxPoints by viewModel.zxPoints.collectAsStateWithLifecycle()
+    val symbols = listOf("🍀", "⚡", "💎")
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "=== [ LUCKY SPIN ] ===",
+            style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (activePet == null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "⚠️ No active pet to gamble with. Hatch one in F2:HATCHERY first!",
+                color = Color(0xFFFF5F56),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+            return
+        }
+
+        Text(
+            text = "ZX Points: $zxPoints",
+            color = Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        when (val spin = luckySpin) {
+            is LuckySpin.Idle -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .border(1.dp, Color(0xFF49454F), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "🎰", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Lucky Spin!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                            color = themeColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Bet ZX Points and try your luck!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                // Bet buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(5, 10, 25).forEach { bet ->
+                        Button(
+                            onClick = { viewModel.startLuckySpin(bet) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeColor,
+                                contentColor = Color(0xFF381E72)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            enabled = zxPoints >= bet
+                        ) {
+                            Text(
+                                "$bet ZX",
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+            is LuckySpin.Spinning -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(modifier = Modifier.size(36.dp), color = themeColor)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "🎰 Spinning...",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = themeColor
+                        )
+                    }
+                }
+            }
+            is LuckySpin.Result -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            2.dp,
+                            if (spin.winnings > 0) Color(0xFFFFD700) else Color(0xFF49454F),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(12.dp))
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            spin.reels.forEach { idx ->
+                                Text(
+                                    text = symbols.getOrElse(idx) { "?" },
+                                    fontSize = 36.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        if (spin.isJackpot) {
+                            Text(
+                                text = "🎰 JACKPOT! 🎰",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else if (spin.winnings > 0) {
+                            Text(
+                                text = "WINNER!",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                color = Color(0xFF27C93F),
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = "No luck!",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                color = Color(0xFFFF5F56)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (spin.winnings > 0) "+${spin.winnings} ZX Points!"
+                            else "Lost ${spin.bet} ZX",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = if (spin.winnings > 0) Color(0xFFFFCC00) else Color.Gray
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = { viewModel.resetLuckySpin() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = themeColor,
+                        contentColor = Color(0xFF381E72)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("🔄 SPIN AGAIN", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Rules
+        Text(
+            text = ">> LUCKY SPIN RULES",
+            style = glowStyle.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        val rules = listOf(
+            "🍀🍀🍀 Three matching = JACKPOT! (5x your bet)",
+            "Two matching = Small win (2x your bet)",
+            "No match = Lose your bet",
+            "Win your first spin for the Lucky Dev achievement!"
+        )
+        for (rule in rules) {
+            Row(modifier = Modifier.padding(vertical = 1.dp)) {
+                Text(text = "• ", color = themeColor, fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+                Text(text = rule, color = Color(0xFF938F99), fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+            }
+        }
+    }
+}
+
+// ── Shiny Sparkle Overlay (Pokemon Go style) ─────────────────────────────────
+@Composable
+fun ShinySparkleOverlay(
+    sparkles: List<ShinySparkle>,
+    shinyColor: Color
+) {
+    val infiniteTransition = rememberInfiniteTransition()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent)
+    ) {
+        for (sparkle in sparkles) {
+            val offsetY by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = -20f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(sparkle.delay.toInt() + 800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                )
+            )
+            val offsetX by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = (if (sparkle.id % 2 == 0) 10f else -10f),
+                animationSpec = infiniteRepeatable(
+                    animation = tween(sparkle.delay.toInt() + 1000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                )
+            )
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1.0f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(600 + sparkle.delay.toInt(), easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                )
+            )
+            Text(
+                text = "✨",
+                fontSize = (12 * sparkle.size).sp,
+                modifier = Modifier
+                    .offset(
+                        x = (sparkle.x * 200).dp + offsetX.dp,
+                        y = (sparkle.y * 180).dp + offsetY.dp
+                    )
+                    .graphicsLayer { this.alpha = alpha },
+                color = shinyColor
+            )
+        }
     }
 }
 

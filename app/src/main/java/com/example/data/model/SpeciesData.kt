@@ -1,5 +1,9 @@
 package com.example.data.model
 
+import androidx.compose.ui.graphics.Color
+import kotlin.math.abs
+import kotlin.random.Random
+
 data class SpeciesSpec(
     val name: String,
     val description: String,
@@ -308,5 +312,30 @@ object SpeciesData {
     fun getByName(name: String): SpeciesSpec {
         return list.firstOrNull { it.name.lowercase() == name.lowercase() }
             ?: list.first()
+    }
+
+    /** Return a vibrant alternate color to tint ASCII art for a shiny variant. */
+    fun getShinyColor(speciesName: String): Color {
+        // Deterministic but distinct per species using name hash
+        val palette = listOf(
+            Color(0xFFFFD700), // Gold
+            Color(0xFF00FFFF), // Cyan
+            Color(0xFFFF69B4), // Hot Pink
+            Color(0xFF7CFC00), // Lawn Green
+            Color(0xFFFF4500), // Orange Red
+            Color(0xFFDA70D6), // Orchid
+            Color(0xFF00BFFF), // Deep Sky Blue
+            Color(0xFFFFD700), // Gold (fallback)
+        )
+        val idx = abs(speciesName.hashCode()) % (palette.size - 1)
+        return palette[idx]
+    }
+
+    /** Generate random sparkle positions for shiny animation overlay. */
+    fun generateSparkles(count: Int = 5, seed: Int = 0): List<Pair<Float, Float>> {
+        val rng = Random(seed)
+        return List(count) {
+            Pair(rng.nextFloat() * 0.8f + 0.1f, rng.nextFloat() * 0.8f + 0.1f) // 0.1-0.9 range
+        }
     }
 }
