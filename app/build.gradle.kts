@@ -24,9 +24,11 @@ android {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
+      val storePass = System.getenv("STORE_PASSWORD") ?: ""
+      storePassword = storePass
       keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      // PKCS12 keystores use the same password for key and store
+      keyPassword = storePass
       enableV2Signing = true
     }
     create("debugConfig") {
