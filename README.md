@@ -51,7 +51,7 @@ $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;an
 ### Build Steps
 ```bash
 # Ensure the SDK path is correct in local.properties
-git clone <repo‑url>
+git clone https://github.com/SwatDesignz/claude-buddy-android.git
 cd zx_buddyv1
 # Verify environment variables are set (ANDROID_HOME, JAVA_HOME)
 ./gradlew --no-configuration-cache assembleDebug assembleRelease

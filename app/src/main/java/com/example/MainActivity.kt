@@ -47,6 +47,7 @@ import com.example.data.model.SpeciesData
 import com.example.data.model.SpeciesSpec
 import com.example.data.model.lifecycle
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.viewmodel.SimonGame
 import com.example.ui.viewmodel.WildEncounter
 import com.example.ui.viewmodel.ZXDigitalPetView
 import com.example.ui.viewmodel.ZXDigitalPetViewFactory
@@ -101,8 +102,12 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
     val wildEncounterLog by viewModel.wildEncounterLog.collectAsStateWithLifecycle()
     val wildCaptures by viewModel.wildCaptures.collectAsStateWithLifecycle()
 
+    // Simon Says game states
+    val simonGame by viewModel.simonGame.collectAsStateWithLifecycle()
+    val simonHighScore by viewModel.simonHighScore.collectAsStateWithLifecycle()
+
     // Screen State tab - UI controlled locally for ultra-fast, robust response times
-    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW, WILD
+    var activeTab by remember { mutableStateOf("CONSOLE") } // CONSOLE, HATCHERY, BLE, THEMES, REVIEW, WILD, GAME
 
     // Map theme names to cathode ray phosphoresces colors
     val themeColor = remember(currentTheme) {
@@ -291,6 +296,16 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                             encounterLog = wildEncounterLog,
                             wildCaptures = wildCaptures,
                             isGenerating = isGenerating,
+                            glowStyle = glowStyle,
+                            themeColor = themeColor
+                        )
+                    }
+                    "GAME" -> {
+                        SimonSaysView(
+                            viewModel = viewModel,
+                            activePet = activePet,
+                            simonGame = simonGame,
+                            highScore = simonHighScore,
                             glowStyle = glowStyle,
                             themeColor = themeColor
                         )
@@ -518,6 +533,15 @@ fun ZBuddyTerminalApp(viewModel: ZXDigitalPetView) {
                         .weight(1f)
                         .testTag("tab_wild"),
                     onClick = { activeTab = "WILD" }
+                )
+                TerminalTabButton(
+                    label = "F7:GAME",
+                    isActive = activeTab == "GAME",
+                    activeColor = themeColor,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("tab_game"),
+                    onClick = { activeTab = "GAME" }
                 )
             }
         }
@@ -2107,6 +2131,338 @@ fun WildEncounterView(
                 )
             }
         }
+    }
+}
+
+// ── Simon Says Memory Game Tab ──────────────────────────────────────────────
+@Composable
+fun SimonSaysView(
+    viewModel: ZXDigitalPetView,
+    activePet: PetEntity?,
+    simonGame: SimonGame,
+    highScore: Int,
+    glowStyle: TextStyle,
+    themeColor: Color
+) {
+    val simonColors = listOf(
+        Color(0xFFFF4444), // Red 0
+        Color(0xFF4488FF), // Blue 1
+        Color(0xFF44CC44), // Green 2
+        Color(0xFFFFCC00)  // Yellow 3
+    )
+    val colorNames = listOf("RED", "BLUE", "GREEN", "YELLOW")
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "=== [ SIMON SAYS ] ===",
+            style = glowStyle.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (activePet == null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "⚠️ No active pet to play with. Hatch one in F2:HATCHERY first!",
+                color = Color(0xFFFF5F56),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+            return
+        }
+
+        // Score display
+        val zxPoints by viewModel.zxPoints.collectAsStateWithLifecycle()
+        Text(
+            text = "High Score: $highScore | ZX Points: $zxPoints",
+            color = Color.Gray,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Game state display
+        when (val game = simonGame) {
+            is SimonGame.Idle -> {
+                // Welcome screen
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .border(1.dp, Color(0xFF49454F), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "🎮", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Simon Says!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                            color = themeColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Watch the sequence, then repeat it.",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = "Each round adds a new step.",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+            is SimonGame.ShowingSequence -> {
+                // Show all 4 buttons with current highlight
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Round ${game.round} — Watch!",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = Color(0xFFFFCC00),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // 2x2 grid of colored buttons
+                    for (row in 0..1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            for (col in 0..1) {
+                                val idx = row * 2 + col
+                                val isLit = game.highlightIndex == idx
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1.3f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            if (isLit) simonColors[idx]
+                                            else simonColors[idx].copy(alpha = 0.3f)
+                                        )
+                                        .border(
+                                            2.dp,
+                                            if (isLit) Color.White
+                                            else simonColors[idx].copy(alpha = 0.5f),
+                                            RoundedCornerShape(12.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isLit) {
+                                        Text(
+                                            text = "●",
+                                            fontSize = 24.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+            is SimonGame.WaitingInput -> {
+                // Player's turn — interactive buttons
+                val progress = "${game.playerInput.size}/${game.sequence.size}"
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFF27C93F).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Round ${game.round} — Your turn! ($progress)",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = Color(0xFF27C93F),
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // 2x2 grid of tappable color buttons
+                    for (row in 0..1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            for (col in 0..1) {
+                                val idx = row * 2 + col
+                                Button(
+                                    onClick = { viewModel.handleSimonInput(idx) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1.3f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .testTag("simon_btn_$idx"),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = simonColors[idx],
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(
+                                        text = colorNames[idx],
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+            is SimonGame.GameOver -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFFFF5F56), RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0D0D0D), RoundedCornerShape(8.dp))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "💥 GAME OVER",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 16.sp,
+                            color = Color(0xFFFF5F56),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Score: ${game.score} | Rounds: ${game.roundsCompleted}",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = themeColor
+                        )
+                        Text(
+                            text = "+${game.pointsAwarded} ZX Points!",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFFFFCC00)
+                        )
+                        if (game.score > 0 && game.score == highScore) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "🏆 NEW HIGH SCORE!",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Action buttons
+        when (simonGame) {
+            is SimonGame.Idle, is SimonGame.GameOver -> {
+                Button(
+                    onClick = { viewModel.startSimonGame() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .border(1.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .testTag("simon_start_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = themeColor,
+                        contentColor = Color(0xFF381E72)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        if (simonGame is SimonGame.Idle) "🎮 START GAME"
+                        else "🔄 PLAY AGAIN",
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            is SimonGame.ShowingSequence, is SimonGame.WaitingInput -> {
+                Button(
+                    onClick = { viewModel.resetSimonGame() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .border(1.dp, Color(0xFFFF5F56).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .testTag("simon_quit_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2B2930),
+                        contentColor = Color(0xFFFF5F56)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("QUIT", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Tips section
+        Text(
+            text = ">> SIMON SAYS TIPS",
+            style = glowStyle.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        val simonTips = listOf(
+            "Watch the sequence carefully before tapping.",
+            "Each round adds one more step to the pattern.",
+            "Score is based on how many correct taps you make.",
+            "Earn ZX Points for each game played.",
+            "Can you beat your high score?"
+        )
+        for (tip in simonTips) {
+            Row(modifier = Modifier.padding(vertical = 1.dp)) {
+                Text(
+                    text = "• ",
+                    color = themeColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp
+                )
+                Text(
+                    text = tip,
+                    color = Color(0xFF938F99),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 9.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Also available via: /simon or /memory in the console.",
+            color = Color(0xFF938F99),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 8.sp
+        )
     }
 }
 

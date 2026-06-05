@@ -33,6 +33,26 @@ sealed class AiStatus {
     data class Failed(val message: String) : AiStatus()
 }
 
+/** Represents the state of the Simon Says memory game. */
+sealed class SimonGame {
+    data object Idle : SimonGame()
+    data class ShowingSequence(
+        val sequence: List<Int>,       // color indices 0-3
+        val highlightIndex: Int,       // currently lit up index (-1 = all done)
+        val round: Int
+    ) : SimonGame()
+    data class WaitingInput(
+        val sequence: List<Int>,
+        val playerInput: List<Int>,
+        val round: Int
+    ) : SimonGame()
+    data class GameOver(
+        val score: Int,                // how many correct inputs
+        val roundsCompleted: Int,
+        val pointsAwarded: Int
+    ) : SimonGame()
+}
+
 /** Represents a wild pet encounter. */
 sealed class WildEncounter {
     data object None : WildEncounter()
@@ -144,6 +164,14 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
     // How many wild pets captured this session
     private val _wildCaptures = MutableStateFlow(0)
     val wildCaptures: StateFlow<Int> = _wildCaptures.asStateFlow()
+
+    // Simon Says game state
+    private val _simonGame = MutableStateFlow<SimonGame>(SimonGame.Idle)
+    val simonGame: StateFlow<SimonGame> = _simonGame.asStateFlow()
+
+    // Highest Simon score this session
+    private val _simonHighScore = MutableStateFlow(0)
+    val simonHighScore: StateFlow<Int> = _simonHighScore.asStateFlow()
 
     init {
         // Animation ticker to alternate pet ASCII frames roughly every 1.5 seconds for idle 60fps vibes
@@ -500,6 +528,127 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
             val petName = activePet.value?.name ?: "SYSTEM"
             addLog(petName, "WILD", "👋 Retreating from the wild encounter. Better luck next time.")
         }
+    }
+
+    // ── Simon Says Memory Game ───────────────────────────────────────────
+    fun startSimonGame() {
+        val pet = activePet.value
+        if (pet == null) {
+            addLog("SYSTEM", "ERROR", "No active pet to play with! Hatch one first.")
+            return
+        }
+        if (_simonGame.value !is SimonGame.Idle && _simonGame.value !is SimonGame.GameOver) {
+            addLog(pet.name, "GAME", "A game is already in progress! Finish it first.")
+            return
+        }
+        viewModelScope.launch {
+            val round = 1
+            val sequence = generateSimonSequence(round)
+            addLog(pet.name, "GAME", "🎮 Simon Says! Watch the sequence carefully...")
+            _simonGame.value = SimonGame.ShowingSequence(sequence = sequence, highlightIndex = -1, round = round)
+            playSimonSequence(sequence)
+        }
+    }
+
+    fun handleSimonInput(colorIndex: Int) {
+        val state = _simonGame.value
+        if (state !is SimonGame.WaitingInput) return
+        val newInput = state.playerInput + colorIndex
+        val expectedIndex = newInput.lastIndex
+
+        // Check if the input matches the sequence so far
+        if (newInput[expectedIndex] != state.sequence[expectedIndex]) {
+            // Wrong! Game over
+            val score = newInput.size - 1 // how many they got right before the mistake
+            val pet = activePet.value
+            val pointsAwarded = score * 5 + 10
+            _zxPoints.value += pointsAwarded
+            if (score > _simonHighScore.value) {
+                _simonHighScore.value = score
+            }
+            _simonGame.value = SimonGame.GameOver(
+                score = score,
+                roundsCompleted = state.round - 1,
+                pointsAwarded = pointsAwarded
+            )
+            val petName = pet?.name ?: "PLAYER"
+            addLog(petName, "GAME",
+                "💥 Wrong! Score: $score | Rounds: ${state.round - 1} | +${pointsAwarded}ZX"
+            )
+            if (pet != null) {
+                val moodMsg = when {
+                    pet.snark > 70 -> "Seriously? That was the easy part!"
+                    pet.wisdom > 70 -> "Pattern recognition is a pathway to many abilities..."
+                    pet.chaos > 70 -> "HAHA you failed! That sequence was CHAOTIC!"
+                    else -> "Good try! Let's play again soon."
+                }
+                addLog(petName, "GAME", "${pet.name}: $moodMsg")
+            }
+            return
+        }
+
+        // Check if they completed the full sequence for this round
+        if (newInput.size == state.sequence.size) {
+            // Round complete! Next round
+            val pet = activePet.value
+            val nextRound = state.round + 1
+            val nextSequence = generateSimonSequence(nextRound, state.sequence)
+            addLog(pet?.name ?: "PLAYER", "GAME", "✅ Round $nextRound! Watch the new sequence...")
+            _simonGame.value = SimonGame.ShowingSequence(
+                sequence = nextSequence,
+                highlightIndex = -1,
+                round = nextRound
+            )
+            viewModelScope.launch { playSimonSequence(nextSequence) }
+        } else {
+            // Correct so far, wait for next input
+            _simonGame.value = state.copy(playerInput = newInput)
+        }
+    }
+
+    fun resetSimonGame() {
+        _simonGame.value = SimonGame.Idle
+    }
+
+    private fun generateSimonSequence(round: Int, existing: List<Int> = emptyList()): List<Int> {
+        val seq = existing.toMutableList()
+        // Add one random step for each round (ensuring round 1 has 2 steps, round 2 has 3, etc.)
+        while (seq.size < round + 1) {
+            seq.add(r.nextInt(4)) // 0-3 for four colors
+        }
+        return seq
+    }
+
+    private suspend fun playSimonSequence(sequence: List<Int>) {
+        for (i in sequence.indices) {
+            _simonGame.value = SimonGame.ShowingSequence(
+                sequence = sequence,
+                highlightIndex = i,
+                round = (_simonGame.value as? SimonGame.ShowingSequence)?.round ?: 1
+            )
+            // Pet visual reaction depends on color index
+            val pet = activePet.value
+            val colorNames = arrayOf("RED", "BLUE", "GREEN", "YELLOW")
+            if (pet != null) {
+                addLog(pet.name, "SIMON", "${colorNames[sequence[i]]}!")
+            }
+            delay(600)
+            // Clear highlight briefly
+            _simonGame.value = SimonGame.ShowingSequence(
+                sequence = sequence,
+                highlightIndex = -1,
+                round = (_simonGame.value as? SimonGame.ShowingSequence)?.round ?: 1
+            )
+            delay(200)
+        }
+        // Switch to waiting for player input
+        _simonGame.value = SimonGame.WaitingInput(
+            sequence = sequence,
+            playerInput = emptyList(),
+            round = (_simonGame.value as? SimonGame.ShowingSequence)?.round ?: 1
+        )
+        val pet = activePet.value
+        addLog(pet?.name ?: "PLAYER", "SIMON", "🎯 Your turn! Tap the colors in order.")
     }
 
     fun fortuneTell(): String {
@@ -1040,6 +1189,7 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
 	- /hunt | /wild                      → Search for a wild pet encounter
 	- /catch | /capture                  → Attempt to capture the wild pet
 	- /flee | /run                       → Retreat from wild encounter
+	- /simon | /memory                     → Play Simon Says memory game
 - /scan | /sync                      → Start BLE scan
 - /disconnect                        → End BLE connection
 - /clear                             → Clear debug logs
@@ -1187,6 +1337,10 @@ Lv ${pet.level} XP ${pet.xp}/100 | ZX Points: ${_zxPoints.value}
             "fortune", "predict" -> {
                 val fortune = fortuneTell()
                 addLog(pet.name, "FORTUNE", "🔮 ${fortune}")
+                true
+            }
+            "simon", "memory", "game" -> {
+                startSimonGame()
                 true
             }
             "test-ai", "ai-status", "ai" -> {
