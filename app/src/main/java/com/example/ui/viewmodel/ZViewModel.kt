@@ -752,10 +752,9 @@ class ZXDigitalPetView(private val repository: ZRepository) : ViewModel() {
         val pet = activePet.value
         var tickCount = 0
         while (true) {
+            delay(1000)
             val state = _bugGame.value
             if (state !is BugGame.Playing) break
-
-            delay(1000)
             tickCount++
 
             // Update timer
